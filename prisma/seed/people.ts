@@ -15,7 +15,7 @@ const DEPARTMENTS = [
   { code: "MER", name: "Merchandise", description: "Hoodies, tees and the merch studio" },
   { code: "VOL", name: "Volunteers & Outreach", description: "Volunteer roster, shifts and community outreach" },
   { code: "COM", name: "Communication", description: "Announcements, social media and the calendar" },
-  { code: "SEC", name: "Security", description: "Event safety, door control and CCTV" },
+  { code: "SEC", name: "Security", description: "Event safety and door control" },
   { code: "OPS", name: "Operations", description: "Logistics, vendors, venues and supplies" },
   { code: "FUN", name: "Fundraising", description: "Sponsorships, donation drives and fundraisers" },
 ] as const;
@@ -294,7 +294,7 @@ export async function seedPeople(db: Db) {
     { user: byName("Diya Chatterjee"), key: "fundraisers.manage", effect: "GRANT", reason: "Leads the Fundraising Committee" },
     { user: byName("Diya Chatterjee"), key: "finance.record_income", effect: "GRANT", reason: "Records donation-drive collections" },
     { user: committeePeople[10], key: "finance.create_expense", effect: "DENY", reason: "Pending audit of an unreceipted claim" },
-    { user: volunteerPeople[12], key: "cctv.view", effect: "GRANT", reason: "Control-room assistant for Spring Gala night" },
+    { user: volunteerPeople[12], key: "tickets.checkin", effect: "GRANT", reason: "Extra door scanner for Spring Gala night" },
     { user: committeePeople[15], key: "announcements.create", effect: "GRANT", reason: "Writes the weekly newsletter" },
   ] as const;
   await db.userPermission.createMany({
@@ -423,9 +423,9 @@ export async function seedPeople(db: Db) {
       action: "role.permissions.update",
       entityType: "Role",
       entityId: roles.president.id,
-      summary: "Updated President permissions (−cctv.view)",
+      summary: "Updated President permissions (−audit.export)",
       before: { removed: [] },
-      after: { removed: ["cctv.view"] },
+      after: { removed: ["audit.export"] },
       createdAt: daysAgo(180),
     },
   ];

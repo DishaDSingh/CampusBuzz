@@ -3,9 +3,8 @@ import { allOf, type PermissionKey } from "./catalog";
 /**
  * Default roles created by the setup wizard and the seed.
  * They are starting points: the Master Admin can re-permission any of them
- * and add custom roles. Note what is *missing* — e.g. only the Security Head
- * sees all cameras (Event Heads see live feeds of their own events' cameras),
- * and only the Treasurer approves expenses.
+ * and add custom roles. Note what is *missing* — e.g. only the Treasurer
+ * approves expenses.
  *
  * Self-service (a member seeing their own pass, tickets, orders) does not
  * need a permission; these keys cover acting on other people's data.
@@ -26,7 +25,7 @@ export const ROLE_PRESETS: RolePreset[] = [
   {
     key: "president",
     name: "President",
-    description: "Leads the organization. Broad visibility, no finance approval or CCTV.",
+    description: "Leads the organization. Broad visibility, but cannot approve finances.",
     color: "indigo",
     rank: 10,
     permissions: [
@@ -139,8 +138,6 @@ export const ROLE_PRESETS: RolePreset[] = [
       "announcements.view",
       "announcements.create",
       ...allOf("calendar"),
-      // Live view of cameras attached to events they organize (see lib/cctv).
-      "cctv.live",
       "reports.view",
       "reports.generate",
       "analytics.view",
@@ -183,10 +180,10 @@ export const ROLE_PRESETS: RolePreset[] = [
   {
     key: "security_head",
     name: "Security Head",
-    description: "Event security and CCTV: every camera, live and playback.",
+    description: "Event safety and door control: check-ins and incident records.",
     color: "slate",
     rank: 85,
-    permissions: ["cctv.view", "cctv.live", "cctv.playback", "events.view", "tickets.checkin", "calendar.view"],
+    permissions: ["events.view", "tickets.checkin", "members.verify", "calendar.view"],
   },
   {
     key: "committee_member",

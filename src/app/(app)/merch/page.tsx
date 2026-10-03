@@ -4,7 +4,7 @@ import { ClipboardListIcon, PackageIcon, PaletteIcon, PlusIcon, ShirtIcon } from
 import { db } from "@/lib/db";
 import { can, requireUser } from "@/lib/auth/current-user";
 import { EmptyState, PageHeader } from "@/components/common";
-import { MockupFace } from "@/components/merch/mockup";
+import { MockupFace, PhotoMockup, hasPhotoMockup } from "@/components/merch/mockup";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatINR, standing } from "@/lib/membership/rules";
@@ -100,15 +100,25 @@ export default async function MerchStorePage() {
                     p.status !== "ACTIVE" && "opacity-70",
                   )}
                 >
-                  <div className="from-muted/60 to-background aspect-square bg-linear-to-b p-6">
-                    <MockupFace
+                  {hasPhotoMockup(art.type) ? (
+                    <PhotoMockup
                       type={art.type}
-                      side="front"
                       color={art.color}
                       {...art.front}
-                      className="transition-transform duration-300 group-hover:scale-105"
+                      crop="square"
+                      className="rounded-none transition-transform duration-500 group-hover:scale-[1.03]"
                     />
-                  </div>
+                  ) : (
+                    <div className="from-muted/60 to-background aspect-square bg-linear-to-b p-6">
+                      <MockupFace
+                        type={art.type}
+                        side="front"
+                        color={art.color}
+                        {...art.front}
+                        className="transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  )}
                   <div className="border-t p-4">
                     <p className="flex items-center gap-2 font-medium">
                       {p.name}

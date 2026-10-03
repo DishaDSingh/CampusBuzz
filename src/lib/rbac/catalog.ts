@@ -190,10 +190,7 @@ export const PERMISSION_MODULES = [
     key: "analytics",
     label: "Analytics & insights",
     description: "Dashboards, insights and organization pulse",
-    permissions: [
-      { action: "view", label: "View", description: "See analytics, insights and pulse" },
-      { action: "simulate", label: "What-if simulator", description: "Run sandbox simulations" },
-    ],
+    permissions: [{ action: "view", label: "View", description: "See analytics, insights and pulse" }],
   },
   {
     key: "ai",
@@ -202,18 +199,6 @@ export const PERMISSION_MODULES = [
     permissions: [
       { action: "use", label: "Use copilot", description: "Ask the organization copilot" },
       { action: "manage", label: "Manage AI", description: "Configure AI providers and features", sensitive: true },
-    ],
-  },
-  {
-    key: "cctv",
-    label: "CCTV & security",
-    description: "Camera feeds and incident records. Never visible by default.",
-    permissions: [
-      { action: "view", label: "View cameras", description: "See the camera list and incidents", sensitive: true },
-      { action: "live", label: "Live access", description: "Watch live feeds", sensitive: true },
-      { action: "playback", label: "Playback", description: "Watch recorded footage", sensitive: true },
-      { action: "export", label: "Export footage", description: "Download footage", sensitive: true },
-      { action: "manage", label: "Manage cameras", description: "Add cameras, groups and retention rules", sensitive: true },
     ],
   },
   {

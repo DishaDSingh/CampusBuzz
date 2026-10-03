@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { toast } from "sonner";
-import { CheckCircle2Icon, CircleAlertIcon, Loader2Icon, XCircleIcon } from "lucide-react";
+import { CameraIcon, CheckCircle2Icon, CircleAlertIcon, KeyboardIcon, Loader2Icon, SearchIcon, XCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, applyServerErrors } from "@/components/form/field";
@@ -15,15 +15,13 @@ import { QrScanner, tokenAfter } from "@/components/qr-scanner";
 import { cn } from "@/lib/utils";
 import { doorSaleSchema } from "@/lib/validation/schemas";
 import { PaymentFields } from "../../../members/member-forms";
-import { checkInTicket, doorSale, type CheckInResult } from "../../actions";
+import { checkInTicket, doorSale, searchEventTickets, type CheckInResult } from "../../actions";
 import { LiveIndicator } from "../live/command-center";
 import { useLiveEvent } from "../live/use-live";
 
 export function DoorStation({ eventId, capacity }: { eventId: string; capacity: number }) {
   const { data, connected } = useLiveEvent(eventId);
   const [last, setLast] = useState<CheckInResult | null>(null);
-  const [code, setCode] = useState("");
-  const [pending, startTransition] = useTransition();
 
   const check = async (token: string) => {
     const res = await checkInTicket({ code: token });
@@ -35,31 +33,7 @@ export function DoorStation({ eventId, capacity }: { eventId: string; capacity: 
   const s = data?.stats;
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_1fr]">
-      <div className="grid content-start gap-4">
-        <QrScanner continuous extract={tokenAfter("t")} onToken={check} hint="Scan ticket QR codes — keeps scanning after each one." />
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            startTransition(async () => {
-              const token = tokenAfter("t")(code) ?? code.trim();
-              await check(token);
-              setCode("");
-            });
-          }}
-        >
-          <Input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Or paste / type the ticket code"
-            aria-label="Ticket code"
-          />
-          <Button type="submit" variant="secondary" disabled={pending || code.trim().length < 8}>
-            {pending && <Loader2Icon className="animate-spin" />}
-            Check in
-          </Button>
-        </form>
-      </div>
+      <DoorFinder eventId={eventId} onCode={check} />
 
       <div className="grid content-start gap-6">
         {last && <ResultCard r={last} />}
@@ -212,5 +186,140 @@ function DoorSaleForm({ eventId, types }: { eventId: string; types: { id: string
         </p>
       </form>
     </section>
+  );
+}
+
+type Found = {
+  code: string;
+  holderName: string;
+  buyerName: string;
+  orderNumber: string;
+  type: string;
+  status: string;
+  checkedInAt: string | null;
+};
+
+/**
+ * Laptop-first door: type a name / order number (results as you type), or
+ * scan with a USB/handheld scanner — they type the code and press Enter, so
+ * it just works. The camera is the second option.
+ */
+function DoorFinder({ eventId, onCode }: { eventId: string; onCode: (code: string) => Promise<void> }) {
+  const [tab, setTab] = useState<"type" | "camera">("type");
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<Found[] | null>(null);
+  const [pending, startTransition] = useTransition();
+  const input = useRef<HTMLInputElement>(null);
+
+  // A ticket link or a long code is a scan, not a name search.
+  const asCode = (v: string) => tokenAfter("t")(v) ?? (/^[A-Za-z0-9_-]{16,}$/.test(v.trim()) ? v.trim() : null);
+
+  useEffect(() => {
+    const v = q.trim();
+    if (v.length < 2 || asCode(v)) return;
+    const t = setTimeout(async () => {
+      const res = await searchEventTickets({ eventId, query: v });
+      if (res.ok) setFound(res.data);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, eventId]);
+
+  const admit = (code: string) =>
+    startTransition(async () => {
+      await onCode(code);
+      setQ("");
+      setFound(null);
+      input.current?.focus();
+    });
+
+  return (
+    <div className="grid content-start gap-3">
+      <div className="bg-muted inline-flex justify-self-start rounded-lg p-0.5 text-sm" role="tablist">
+        {(
+          [
+            ["type", "Type or search", KeyboardIcon],
+            ["camera", "Camera", CameraIcon],
+          ] as const
+        ).map(([k, label, Icon]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1",
+              tab === k ? "bg-background font-medium shadow-sm" : "text-muted-foreground",
+            )}
+          >
+            <Icon className="size-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "camera" ? (
+        <QrScanner continuous extract={tokenAfter("t")} onToken={onCode} hint="Scan ticket QR codes — keeps scanning after each one." />
+      ) : (
+        <div className="bg-card grid gap-3 rounded-2xl border p-4 shadow-sm">
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const code = asCode(q);
+              if (code) admit(code);
+              else if (found?.length === 1) admit(found[0].code);
+            }}
+          >
+            <div className="relative flex-1">
+              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+              <Input
+                ref={input}
+                autoFocus
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  if (e.target.value.trim().length < 2) setFound(null);
+                }}
+                placeholder="Name, order no. — or scan with a USB scanner"
+                aria-label="Find a ticket"
+                className="h-11 pl-8 text-base"
+              />
+            </div>
+            <Button type="submit" disabled={pending || q.trim().length < 2} className="h-11">
+              {pending && <Loader2Icon className="animate-spin" />}
+              Check in
+            </Button>
+          </form>
+          <p className="text-muted-foreground text-xs">
+            Tip: a USB/handheld QR scanner types the code and presses Enter — just keep this box focused.
+          </p>
+          {found && (
+            <ul className="divide-y rounded-xl border">
+              {found.length === 0 && <li className="text-muted-foreground p-3 text-sm">No ticket found for “{q}”.</li>}
+              {found.map((t) => (
+                <li key={t.code} className="flex flex-wrap items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="font-medium">{t.holderName}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {t.type} · {t.orderNumber}
+                      {t.buyerName !== t.holderName && ` · bought by ${t.buyerName}`}
+                    </p>
+                  </div>
+                  {t.checkedInAt ? (
+                    <span className="text-muted-foreground text-xs font-medium">Already in</span>
+                  ) : t.status !== "VALID" ? (
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Not paid</span>
+                  ) : (
+                    <Button size="sm" disabled={pending} onClick={() => admit(t.code)}>
+                      Check in
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

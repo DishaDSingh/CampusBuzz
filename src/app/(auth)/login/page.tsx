@@ -17,8 +17,11 @@ export default async function LoginPage(props: PageProps<"/login">) {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-      <p className="text-muted-foreground mt-1 text-sm">to {org?.name ?? "your organization"}</p>
+      <p className="text-sm font-medium text-violet-600 dark:text-violet-300">Welcome back 👋</p>
+      <h1 className="font-heading mt-1 text-3xl font-semibold tracking-tight">Sign in</h1>
+      <p className="text-muted-foreground mt-1 text-sm">
+        to <span className="text-foreground font-medium">{org?.name ?? "your organization"}</span>
+      </p>
       <LoginForm next={safeNext} />
     </div>
   );

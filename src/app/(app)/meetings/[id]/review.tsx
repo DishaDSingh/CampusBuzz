@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Section } from "@/components/common";
 import { NativeSelect } from "@/components/form/field";
-import type { Extracted } from "@/lib/meetings/extract";
+import type { StoredMinutes } from "@/lib/meetings/minutes";
 import { confirmMeeting, extractFromMeeting } from "../actions";
 
 export function ExtractButton({ meetingId }: { meetingId: string }) {
@@ -46,12 +46,13 @@ export function ReviewForm({
   source,
 }: {
   meetingId: string;
-  initial: Extracted & { actions: (Extracted["actions"][number] & { ownerId?: string | null })[] };
+  initial: StoredMinutes;
   people: { id: string; name: string }[];
   source: string | null;
 }) {
   const router = useRouter();
   const [summary, setSummary] = useState(initial.summary);
+  const [attendees, setAttendees] = useState(initial.attendees ?? []);
   const [decisions, setDecisions] = useState(initial.decisions);
   const [questions, setQuestions] = useState(initial.questions);
   const [actions, setActions] = useState<Action[]>(initial.actions.map((a) => ({ ...a, create: true })));
@@ -122,6 +123,7 @@ export function ReviewForm({
         </Button>
       </Section>
 
+      <EditableList title="Attendees" items={attendees} onChange={setAttendees} />
       <EditableList title="Decisions" hint="Saved to organization memory when you confirm." items={decisions} onChange={setDecisions} />
       <EditableList title="Open questions" items={questions} onChange={setQuestions} />
 
@@ -137,6 +139,7 @@ export function ReviewForm({
               const res = await confirmMeeting({
                 meetingId,
                 summary,
+                attendees: attendees.map((a) => a.trim()).filter(Boolean),
                 decisions: decisions.map((d) => d.trim()).filter(Boolean),
                 questions: questions.map((q) => q.trim()).filter(Boolean),
                 actions: actions

@@ -5,63 +5,110 @@
  */
 
 export const TEMPLATE_STYLES = [
-  { key: "varsity", label: "Varsity" },
-  { key: "badge", label: "Badge" },
-  { key: "minimal", label: "Minimal" },
-  { key: "stamp", label: "Stamp" },
-  { key: "stacked", label: "Stacked" },
+  { key: "varsity", label: "Collegiate" },
+  { key: "badge", label: "Crest" },
+  { key: "minimal", label: "Wordmark" },
+  { key: "stamp", label: "Heritage" },
+  { key: "stacked", label: "Athletic" },
 ] as const;
 export type TemplateStyle = (typeof TEMPLATE_STYLES)[number]["key"];
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** Initials for crests: "Horizon Student Association" → "HSA". */
+const initials = (t: string) =>
+  t
+    .split(/\s+/)
+    .filter((w) => !/^(of|the|and|&)$/i.test(w))
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase() || "CB";
+
+/**
+ * Professional, print-ready artwork built from type alone — the way real
+ * college merch is designed: classic serif and athletic faces, careful
+ * letter-spacing, thin rules and stars. System fonts only (Georgia, Impact,
+ * Helvetica) so it renders the same everywhere, offline.
+ */
 export function templateArtwork(opts: { style: TemplateStyle; title: string; subtitle?: string; ink: string; accent?: string }) {
-  const title = esc(opts.title.trim().slice(0, 28) || "CAMPUSBUZZ");
-  const sub = esc((opts.subtitle ?? "").trim().slice(0, 32));
+  const raw = opts.title.trim().slice(0, 28) || "CampusBuzz";
+  const title = esc(raw.toUpperCase());
+  const sub = esc((opts.subtitle ?? "").trim().slice(0, 24).toUpperCase());
   const ink = /^#[0-9a-f]{6}$/i.test(opts.ink) ? opts.ink : "#ffffff";
   const accent = opts.accent && /^#[0-9a-f]{6}$/i.test(opts.accent) ? opts.accent : ink;
-  const font = `font-family="Arial Black, Helvetica, sans-serif" font-weight="900"`;
-  const fit = (base: number, len: number, max: number) => Math.max(14, Math.min(base, Math.floor(max / Math.max(1, len) / 0.62)));
+  const serif = `font-family="Georgia, 'Times New Roman', serif" font-weight="700"`;
+  const athletic = `font-family="Impact, 'Arial Black', Helvetica, sans-serif"`;
+  const sans = `font-family="Helvetica, Arial, sans-serif"`;
+  // Fit a line of text into `max` px at roughly 0.6em per character.
+  const fit = (base: number, len: number, max: number, ratio = 0.62) =>
+    Math.max(12, Math.min(base, Math.floor(max / Math.max(1, len) / ratio)));
+  const star = (cx: number, cy: number, r: number) => {
+    const pts = Array.from({ length: 10 }, (_, i) => {
+      const a = (Math.PI / 5) * i - Math.PI / 2;
+      const rr = i % 2 ? r * 0.45 : r;
+      return `${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`;
+    });
+    return `<polygon points="${pts.join(" ")}" fill="${ink}"/>`;
+  };
+  const year = sub || String(new Date().getFullYear());
+  // Wordmark: wide letter-spacing for short names, tighter for long ones, always inside 230px.
+  const wordSpacing = title.length > 14 ? 2 : title.length > 9 ? 4 : 7;
+  const wordSize = Math.max(12, Math.min(30, Math.floor((230 / Math.max(1, title.length) - wordSpacing) / 0.62)));
 
   const body = (() => {
     switch (opts.style) {
+      // Arched collegiate name over a big year, framed by stars and rules.
       case "varsity":
-        return `<defs><path id="arc" d="M40 170 A110 110 0 0 1 260 170"/></defs>
-<text ${font} font-size="${fit(34, title.length, 300)}" fill="${ink}" letter-spacing="3" text-anchor="middle"><textPath href="#arc" startOffset="50%">${title.toUpperCase()}</textPath></text>
-<text ${font} x="150" y="215" font-size="54" fill="${accent}" text-anchor="middle" letter-spacing="2">${esc((opts.subtitle || "26").slice(0, 4))}</text>
-<rect x="95" y="232" width="110" height="4" fill="${ink}"/>`;
+        return `<defs><path id="arc" d="M45 175 A115 115 0 0 1 255 175"/></defs>
+<text ${serif} font-size="${fit(30, title.length, 250, 0.7)}" fill="${ink}" letter-spacing="4" text-anchor="middle"><textPath href="#arc" startOffset="50%">${title}</textPath></text>
+${star(78, 196, 7)}${star(222, 196, 7)}
+<text ${athletic} x="150" y="232" font-size="64" fill="none" stroke="${accent}" stroke-width="2.5" text-anchor="middle" letter-spacing="2">${esc(year.slice(-4))}</text>
+<line x1="70" y1="250" x2="230" y2="250" stroke="${ink}" stroke-width="2"/>
+<text ${sans} font-weight="700" x="150" y="270" font-size="11" fill="${ink}" text-anchor="middle" letter-spacing="6">EST. ${esc(year.slice(-4))}</text>`;
+
+      // Shield crest with initials, a ribbon of the full name underneath.
       case "badge":
-        return `<defs><path id="ring" d="M150 150 m-98 0 a98 98 0 1 1 196 0 a98 98 0 1 1 -196 0"/></defs>
-<circle cx="150" cy="150" r="118" fill="none" stroke="${ink}" stroke-width="6"/>
-<circle cx="150" cy="150" r="80" fill="none" stroke="${ink}" stroke-width="2"/>
-<text ${font} font-size="18" fill="${ink}" letter-spacing="4"><textPath href="#ring" startOffset="0">${(title + " • " + (sub || "EST. 2016") + " • ").toUpperCase()}</textPath></text>
-<text ${font} x="150" y="164" font-size="${fit(40, Math.min(title.length, 6), 140)}" fill="${accent}" text-anchor="middle">${title
-          .split(/\s+/)
-          .map((w) => w[0])
-          .join("")
-          .slice(0, 4)
-          .toUpperCase()}</text>`;
+        return `<path d="M150 40 L232 70 L232 150 Q232 220 150 258 Q68 220 68 150 L68 70 Z" fill="none" stroke="${ink}" stroke-width="6" stroke-linejoin="round"/>
+<path d="M150 56 L218 80 L218 148 Q218 206 150 240 Q82 206 82 148 L82 80 Z" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linejoin="round"/>
+<line x1="96" y1="112" x2="204" y2="112" stroke="${ink}" stroke-width="1.6"/>
+${star(150, 92, 9)}
+<text ${serif} x="150" y="180" font-size="${initials(raw).length > 2 ? 50 : 62}" fill="${accent}" text-anchor="middle" letter-spacing="2">${initials(raw)}</text>
+<path d="M58 238 L242 238 L232 254 L242 270 L58 270 L68 254 Z" fill="${ink}"/>
+<text ${sans} font-weight="700" x="150" y="259" font-size="${fit(12, title.length, 160, 0.72)}" fill="${ink === "#ffffff" ? "#111827" : "#ffffff"}" text-anchor="middle" letter-spacing="2">${title}</text>`;
+
+      // Clean modern wordmark with fine rules — the "premium brand" look.
       case "minimal":
-        return `<text x="150" y="150" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="${fit(36, title.length, 260)}" fill="${ink}" text-anchor="middle" letter-spacing="1">${title}</text>
-<rect x="110" y="166" width="80" height="3" fill="${accent}"/>
-${sub ? `<text x="150" y="196" font-family="Helvetica, Arial, sans-serif" font-size="15" fill="${ink}" text-anchor="middle" letter-spacing="4">${sub.toUpperCase()}</text>` : ""}`;
+        return `<line x1="60" y1="118" x2="240" y2="118" stroke="${ink}" stroke-width="1.2"/>
+<text ${sans} font-weight="300" x="150" y="160" font-size="${wordSize}" fill="${ink}" text-anchor="middle" letter-spacing="${wordSpacing}">${title}</text>
+<line x1="60" y1="180" x2="240" y2="180" stroke="${ink}" stroke-width="1.2"/>
+<text ${sans} font-weight="700" x="150" y="204" font-size="10" fill="${accent}" text-anchor="middle" letter-spacing="8">${sub || "CAMPUS COLLECTION"}</text>`;
+
+      // Heritage label: double border, serif name, small caps details.
       case "stamp":
-        return `<g transform="rotate(-8 150 150)">
-<rect x="35" y="95" width="230" height="110" rx="12" fill="none" stroke="${ink}" stroke-width="7"/>
-<rect x="47" y="107" width="206" height="86" rx="6" fill="none" stroke="${ink}" stroke-width="2"/>
-<text ${font} x="150" y="160" font-size="${fit(36, title.length, 190)}" fill="${accent}" text-anchor="middle">${title.toUpperCase()}</text>
-${sub ? `<text x="150" y="184" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="13" fill="${ink}" text-anchor="middle" letter-spacing="3">${sub.toUpperCase()}</text>` : ""}</g>`;
+        return `<rect x="40" y="88" width="220" height="124" rx="4" fill="none" stroke="${ink}" stroke-width="5"/>
+<rect x="50" y="98" width="200" height="104" rx="2" fill="none" stroke="${ink}" stroke-width="1.4"/>
+<text ${sans} font-weight="700" x="150" y="122" font-size="10" fill="${ink}" text-anchor="middle" letter-spacing="6">AUTHENTIC</text>
+<text ${serif} font-style="italic" x="150" y="${title.length > 12 ? 162 : 166}" font-size="${fit(34, title.length, 180, 0.62)}" fill="${accent}" text-anchor="middle">${esc(raw)}</text>
+<line x1="90" y1="178" x2="210" y2="178" stroke="${ink}" stroke-width="1"/>
+<text ${sans} font-weight="700" x="150" y="194" font-size="10" fill="${ink}" text-anchor="middle" letter-spacing="5">${sub ? `EST. ${sub}` : "SINCE " + year}</text>`;
+
+      // Athletic block lettering with an offset outline shadow.
       case "stacked": {
-        const words = title.toUpperCase().split(/\s+/).slice(0, 3);
+        const words = title.split(/\s+/).slice(0, 3);
+        const lineH = 58;
+        const top = 150 - ((words.length - 1) * lineH) / 2 + 20;
         return words
-          .map(
-            (w, i) =>
-              `<text ${font} x="150" y="${110 + i * 52}" font-size="${fit(52, w.length, 240)}" fill="${i % 2 ? accent : ink}" text-anchor="middle">${w}</text>`,
-          )
+          .map((w, i) => {
+            const size = fit(62, w.length, 230, 0.55);
+            const y = top + i * lineH;
+            return `<text ${athletic} x="154" y="${y + 4}" font-size="${size}" fill="none" stroke="${accent}" stroke-width="2" text-anchor="middle" letter-spacing="1">${w}</text>
+<text ${athletic} x="150" y="${y}" font-size="${size}" fill="${ink}" text-anchor="middle" letter-spacing="1">${w}</text>`;
+          })
           .join("\n")
           .concat(
             sub
-              ? `\n<text x="150" y="${110 + words.length * 52}" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="${ink}" text-anchor="middle" letter-spacing="5">${sub.toUpperCase()}</text>`
+              ? `\n<text ${sans} font-weight="700" x="150" y="${top + words.length * lineH - 18}" font-size="12" fill="${ink}" text-anchor="middle" letter-spacing="8">${sub}</text>`
               : "",
           );
       }

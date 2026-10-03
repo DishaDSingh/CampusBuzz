@@ -24,7 +24,7 @@ describe("navigation follows the three product layers", () => {
     const groups = Object.fromEntries(NAV.map((g) => [g.label, g.items.map((i) => i.href)]));
     expect(Object.keys(groups)).toEqual(["Home", "Operate", "Understand", "Anticipate", "Administration", "You"]);
     expect(groups.Understand).toEqual(["/insights", "/copilot", "/analytics", "/reports"]);
-    expect(groups.Anticipate).toEqual(["/simulate", "/meetings", "/memory"]);
+    expect(groups.Anticipate).toEqual(["/meetings", "/memory"]);
   });
 
   it("every nav link is unique", () => {

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect } from "@/components/form/field";
-import { Mockup3D } from "@/components/merch/mockup";
+import { MerchPreview } from "@/components/merch/mockup";
 import { cn } from "@/lib/utils";
 import { formatINR, rupeesToPaise } from "@/lib/membership/rules";
 import {
@@ -21,6 +21,7 @@ import {
   type ProductTypeKey,
 } from "@/lib/merch/rules";
 import { svgDataUri, templateArtwork, TEMPLATE_STYLES, type TemplateStyle } from "@/lib/merch/artwork";
+import { inkFor, parseMerchPrompt } from "@/lib/merch/prompt";
 import { createProductFromDesign, generateArtwork, reviewDesign, saveDesign, submitDesign } from "./actions";
 
 const SWATCHES = ["#111827", "#1e3a8a", "#7f1d1d", "#14532d", "#6b7280", "#f5f5f4", "#facc15", "#7c3aed"];
@@ -80,12 +81,31 @@ export function Designer({ initial, editable, canSubmit }: { initial: DesignStat
     }));
   };
 
-  const generate = () =>
+  const generate = (promptText = d.aiPrompt) =>
     startTransition(async () => {
-      if (d.aiPrompt.trim().length < 3) return setErrors({ aiPrompt: "Describe the design you want" });
+      if (promptText.trim().length < 3)
+        return setErrors({ aiPrompt: "Describe the merch you want, e.g. “classic navy hoodie for Diwali Gala 2026”" });
+      setErrors({});
+      // Read product, colours and text from the sentence, then design.
+      const parsed = parseMerchPrompt(promptText);
+      const productType = parsed.productType ?? d.productType;
+      const baseColor = parsed.baseColor ?? d.baseColor;
+      const inkColor = parsed.inkColor ?? (parsed.baseColor ? inkFor(parsed.baseColor) : d.inkColor);
+      const t = PRODUCT_TYPES.find((x) => x.key === productType)!;
+      setD((x) => ({
+        ...x,
+        aiPrompt: promptText,
+        productType,
+        baseColor,
+        inkColor,
+        frontText: parsed.title ?? x.frontText,
+        name: x.name || [parsed.title, parsed.subtitle, t.label].filter(Boolean).join(" "),
+        sizes: t.apparel ? (x.sizes.length ? x.sizes : ["S", "M", "L", "XL"]) : [],
+      }));
+      if (parsed.style) setStyle(parsed.style);
       setBusy("ai");
       setAiNote(null);
-      const res = await generateArtwork({ prompt: d.aiPrompt, productType: d.productType, baseColor: d.baseColor, inkColor: d.inkColor });
+      const res = await generateArtwork({ prompt: promptText, productType, baseColor, inkColor });
       setBusy(null);
       if (!res.ok) return void toast.error(res.fieldErrors?.prompt?.[0] ?? res.error);
       setD((x) => ({ ...x, artworkSvg: res.data.svg, artworkSource: res.data.source, logo: null, name: x.name || res.data.title }));
@@ -149,8 +169,59 @@ export function Designer({ initial, editable, canSubmit }: { initial: DesignStat
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div className="grid content-start gap-4">
+        {editable && (
+          <section className="relative overflow-hidden rounded-2xl border bg-linear-to-br from-pink-500/10 via-violet-500/10 to-indigo-500/10 p-4 sm:p-5">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <SparklesIcon className="size-4 text-pink-500" /> Describe your merch
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-sm">
+              One sentence is enough — we pick the product, colours, style and text, and show it on a model.
+            </p>
+            <form
+              className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"
+              onSubmit={(e) => {
+                e.preventDefault();
+                generate();
+              }}
+            >
+              <Input
+                value={d.aiPrompt}
+                maxLength={300}
+                onChange={(e) => set("aiPrompt", e.target.value)}
+                placeholder="Classic navy hoodie for Diwali Gala 2026 with gold print"
+                aria-label="Describe your merch"
+                aria-invalid={!!errors.aiPrompt}
+                className="bg-background"
+              />
+              <Button type="submit" disabled={busy !== null}>
+                {busy === "ai" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                {busy === "ai" ? "Designing…" : "Create design"}
+              </Button>
+            </form>
+            {errors.aiPrompt && <p className="text-destructive mt-1.5 text-xs">{errors.aiPrompt}</p>}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {[
+                "Classic navy hoodie for Diwali Gala 2026",
+                "Minimal white tee saying Horizon Tech Club",
+                "Black hoodie with a crest for Horizon Student Association",
+                "Bold maroon tee for Sports Meet 2026",
+              ].map((ex) => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => generate(ex)}
+                  disabled={busy !== null}
+                  className="bg-background/80 hover:bg-background rounded-full border px-2.5 py-1 text-xs transition-colors"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+            {aiNote && <p className="bg-background/70 mt-3 rounded-lg px-3 py-2 text-xs">{aiNote}</p>}
+          </section>
+        )}
         <section className="bg-card rounded-xl border p-4 sm:p-5">
-          <Mockup3D type={d.productType} color={d.baseColor} front={front} back={{ text: d.backText || null, ink: d.inkColor }} />
+          <MerchPreview type={d.productType} color={d.baseColor} front={front} back={{ text: d.backText || null, ink: d.inkColor }} />
           <p className="text-muted-foreground mt-2 text-xs">
             Visual preview only — not a manufacturing proof.
             {d.artworkSource &&
@@ -161,20 +232,7 @@ export function Designer({ initial, editable, canSubmit }: { initial: DesignStat
         {editable && (
           <section className="bg-card grid gap-4 rounded-xl border p-4 sm:p-5">
             <h2 className="font-medium">Artwork</h2>
-            <Field
-              id="aiPrompt"
-              label="Describe it for AI"
-              hint="e.g. retro varsity crest with a lightning bolt and “HSA 2027”"
-              error={errors.aiPrompt}
-            >
-              <Textarea rows={2} value={d.aiPrompt} maxLength={300} onChange={(e) => set("aiPrompt", e.target.value)} />
-            </Field>
-            {aiNote && <p className="bg-muted/60 rounded-lg px-3 py-2 text-xs">{aiNote}</p>}
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={generate} disabled={busy !== null}>
-                {busy === "ai" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                {busy === "ai" ? "Designing…" : "Generate with AI"}
-              </Button>
               <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy !== null}>
                 {busy === "upload" ? <Loader2Icon className="animate-spin" /> : <ImageUpIcon />} Upload logo
               </Button>
@@ -201,7 +259,7 @@ export function Designer({ initial, editable, canSubmit }: { initial: DesignStat
             </div>
             <div>
               <p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs">
-                <WandIcon className="size-3.5" /> Or use the offline template designer
+                <WandIcon className="size-3.5" /> Or pick a style
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {TEMPLATE_STYLES.map((t) => (

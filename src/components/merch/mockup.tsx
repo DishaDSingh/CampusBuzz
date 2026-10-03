@@ -228,3 +228,180 @@ export function Mockup3D({
     </div>
   );
 }
+
+// ─── Photo mockups (on a model) ──────────────────────────────────────────────
+
+type Photo = { src: string; w: number; h: number; print: [number, number, number, number]; dark: boolean; filter?: string };
+
+/**
+ * Real photos with a measured chest print area (percent of the image). The
+ * design is blended into the fabric — multiply on light garments, screen on
+ * dark ones — so folds and shading show through like real ink.
+ */
+const PHOTOS: Record<"hoodie" | "tshirt", { light: { model: Photo; product: Photo }; dark: { model: Photo; product: Photo } }> = {
+  hoodie: {
+    light: {
+      model: { src: "/mockups/hoodie-light.jpg", w: 1200, h: 1797, print: [33, 44, 36, 27], dark: false },
+      product: { src: "/mockups/hoodie-light.jpg", w: 1200, h: 1797, print: [33, 44, 36, 27], dark: false },
+    },
+    dark: {
+      model: { src: "/mockups/hoodie-dark.jpg", w: 1200, h: 1800, print: [43, 40, 34, 23], dark: true },
+      product: { src: "/mockups/hoodie-dark.jpg", w: 1200, h: 1800, print: [43, 40, 34, 23], dark: true },
+    },
+  },
+  tshirt: {
+    light: {
+      model: { src: "/mockups/tee-model.jpg", w: 1200, h: 1800, print: [29, 50, 42, 28], dark: false },
+      product: { src: "/mockups/tee-flat.jpg", w: 1200, h: 800, print: [36, 22, 32, 46], dark: false },
+    },
+    dark: {
+      model: {
+        src: "/mockups/tee-flat.jpg",
+        w: 1200,
+        h: 800,
+        print: [36, 22, 32, 46],
+        dark: true,
+        filter: "brightness(0.28) contrast(1.15)",
+      },
+      product: {
+        src: "/mockups/tee-flat.jpg",
+        w: 1200,
+        h: 800,
+        print: [36, 22, 32, 46],
+        dark: true,
+        filter: "brightness(0.28) contrast(1.15)",
+      },
+    },
+  },
+};
+
+export const hasPhotoMockup = (type: ProductTypeKey) => type === "hoodie" || type === "tshirt";
+
+const isLight = (hex: string) => {
+  const n = Number.parseInt(hex.replace("#", ""), 16);
+  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255) > 140;
+};
+
+export function PhotoMockup({
+  type,
+  color,
+  artwork,
+  text,
+  ink,
+  view = "model",
+  crop,
+  className,
+}: {
+  type: ProductTypeKey;
+  color: string;
+  artwork?: string | null;
+  text?: string | null;
+  ink?: string;
+  view?: "model" | "product";
+  /** "square" shows the upper body in a square tile (cards); default shows the whole photo. */
+  crop?: "square";
+  className?: string;
+}) {
+  if (!hasPhotoMockup(type)) return null;
+  const p = PHOTOS[type as "hoodie" | "tshirt"][isLight(color) ? "light" : "dark"][view];
+  const [x, y, w, h] = p.print;
+  const blend = p.dark ? "screen" : "multiply";
+  const ratio = p.h / p.w;
+  // Square crop: centre the print area vertically.
+  const shift = crop === "square" && ratio > 1 ? Math.min(ratio - 1, Math.max(0, ((y + h / 2) / 100) * ratio - 0.5)) / ratio : 0;
+
+  const photo = (
+    <div
+      className="relative w-full"
+      style={{ aspectRatio: `${p.w} / ${p.h}`, transform: shift ? `translateY(-${shift * 100}%)` : undefined }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- local static photo; sizes vary per mockup */}
+      <img
+        src={p.src}
+        alt={`${type === "hoodie" ? "Hoodie" : "T-shirt"} on a model`}
+        className="absolute inset-0 size-full object-cover"
+        style={{ filter: p.filter }}
+        draggable={false}
+      />
+      <div
+        className="absolute flex items-center justify-center"
+        style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`, mixBlendMode: blend }}
+      >
+        {artwork ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data-URI SVG artwork must render as a plain image
+          <img src={artwork} alt="" className="size-full object-contain opacity-95" draggable={false} />
+        ) : text ? (
+          <span
+            className="text-center leading-none font-black tracking-wide uppercase"
+            style={{
+              color: ink ?? (p.dark ? "#fff" : "#111"),
+              fontFamily: "Impact, 'Arial Black', sans-serif",
+              fontSize: `clamp(10px, ${Math.max(2.2, 9 - text.length * 0.3)}cqw, 64px)`,
+            }}
+          >
+            {text.slice(0, 24)}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={cn(
+        "[container-type:inline-size] relative overflow-hidden rounded-xl bg-neutral-100",
+        crop === "square" && "aspect-square",
+        className,
+      )}
+    >
+      {photo}
+    </div>
+  );
+}
+
+type Side = { artwork?: string | null; text?: string | null; ink?: string };
+
+/**
+ * The main merch preview: a real photo "on a model" by default, with a flat
+ * product shot and the rotatable 3D view one click away. Caps, totes and mugs
+ * (no photo) go straight to 3D.
+ */
+export function MerchPreview({ type, color, front, back }: { type: ProductTypeKey; color: string; front: Side; back: Side }) {
+  const photos = hasPhotoMockup(type);
+  const [view, setView] = useState<"model" | "product" | "3d">("model");
+  const current = photos ? view : "3d";
+  return (
+    <div className="grid gap-3">
+      {current === "3d" ? (
+        <Mockup3D type={type} color={color} front={front} back={back} />
+      ) : (
+        <PhotoMockup type={type} color={color} view={current} {...front} className="border" />
+      )}
+      {photos && (
+        <div className="bg-muted inline-flex justify-self-start rounded-lg p-0.5 text-sm" role="tablist" aria-label="Preview">
+          {(
+            [
+              ["model", "On model"],
+              ["product", "Flat"],
+              ["3d", "3D"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={current === k}
+              onClick={() => setView(k)}
+              className={cn(
+                "rounded-md px-3 py-1",
+                current === k ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

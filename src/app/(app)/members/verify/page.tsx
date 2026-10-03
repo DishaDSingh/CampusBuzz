@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth/current-user";
 import { PageHeader, Section } from "@/components/common";
 import { fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ManualLookup, PassScanner } from "./scanner";
+import { VerifyStation } from "./scanner";
 
 export const metadata: Metadata = { title: "Verify pass" };
 
@@ -25,16 +25,13 @@ export default async function VerifyPage() {
     <>
       <PageHeader
         title="Verify member pass"
-        description={`Scan a member's QR at the door, or look them up. ${todayCount} checks recorded today.`}
+        description={`Look members up by name or number — no camera needed. ${todayCount} checks recorded today.`}
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,28rem)_1fr]">
-        <Section title="Scan">
-          <PassScanner />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <Section title="Check a pass" description="Type a name or member number, scan with a USB scanner, or use the camera.">
+          <VerifyStation />
         </Section>
         <div className="grid content-start gap-6">
-          <Section title="Manual lookup" description="No camera, or the member forgot their phone.">
-            <ManualLookup />
-          </Section>
           <Section title="Your recent checks">
             {recent.length ? (
               <ul className="grid gap-2 text-sm">

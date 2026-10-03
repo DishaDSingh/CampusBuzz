@@ -247,6 +247,7 @@ export async function seedMemory(db: Db) {
       confirmedAt: debriefAt,
       extracted: {
         summary: "The team reviewed the 2025 gala: strong sales, a long entry queue after 7 pm and food running short at one counter.",
+        attendees: debrief.attendees,
         decisions: debrief.decisions,
         questions: debrief.questions,
         actions: debrief.actions.map((a) => ({ task: a.task, ownerId: null, due: a.due, created: true })),

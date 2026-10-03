@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mockup3D } from "@/components/merch/mockup";
+import { MerchPreview } from "@/components/merch/mockup";
 import type { ProductTypeKey } from "@/lib/merch/rules";
 import { BuyMerchPanel } from "../merch-forms";
 
@@ -26,7 +26,7 @@ export function ProductView({
   const [color, setColor] = useState(art.color);
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Mockup3D type={art.type} color={color} front={art.front} back={art.back} />
+      <MerchPreview type={art.type} color={color} front={art.front} back={art.back} />
       <div>
         {buyable ? (
           <BuyMerchPanel

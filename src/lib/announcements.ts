@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { structured } from "@/lib/ai/claude";
 import type { Prisma } from "@/generated/prisma/client";
+import { AUDIENCE_LABEL, type AudienceKey } from "@/lib/announcement-templates";
 
 /**
  * Announcements (Phase 22) — and the clearest example of the AI principle
@@ -11,18 +12,24 @@ import type { Prisma } from "@/generated/prisma/client";
  * will be notified.
  */
 
-export const AUDIENCES = {
-  MEMBERS: "Active members",
-  EXPIRING: "Members whose membership ends this week",
-  VOLUNTEERS: "Volunteers",
-  ALL: "Everyone with an account",
-} as const;
-export type Audience = keyof typeof AUDIENCES;
+export const AUDIENCES = AUDIENCE_LABEL;
+export type Audience = AudienceKey;
 
 /** Who an announcement reaches — the same query is used to count and to send. */
 export function audienceWhere(a: Audience, now = new Date()): Prisma.UserWhereInput {
   const active: Prisma.UserWhereInput = { status: "ACTIVE" };
   if (a === "MEMBERS") return { ...active, memberships: { some: { status: "ACTIVE", startDate: { lte: now }, endDate: { gte: now } } } };
+  if (a === "TODAY") {
+    // Ends before midnight tonight and not already renewed.
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return {
+      ...active,
+      AND: [
+        { memberships: { some: { status: "ACTIVE", startDate: { lte: now }, endDate: { gte: now, lt: midnight } } } },
+        { memberships: { none: { status: "ACTIVE", startDate: { gt: now } } } },
+      ],
+    };
+  }
   if (a === "EXPIRING") {
     // Same rule as the renewal insight: ends within 7 days and not already renewed.
     const week = new Date(now.getTime() + 7 * 86_400_000);

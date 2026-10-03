@@ -289,6 +289,15 @@
     background-position: 100% 50%;
   }
 }
+@keyframes cb-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--tilt, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--tilt, 0deg));
+  }
+}
 @keyframes cb-confetti {
   0% {
     opacity: 1;

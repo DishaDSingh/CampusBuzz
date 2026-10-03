@@ -693,6 +693,7 @@ export const meetingSchema = z.object({
 export const confirmMeetingSchema = z.object({
   meetingId: id,
   summary: z.string().trim().max(2000),
+  attendees: z.array(z.string().trim().min(1).max(80)).max(80).default([]),
   decisions: z.array(z.string().trim().min(1).max(500)).max(50),
   questions: z.array(z.string().trim().min(1).max(500)).max(50),
   actions: z
@@ -728,47 +729,23 @@ export const memoryItemSchema = z.object({
 
 export const askMemorySchema = z.object({ q: z.string().trim().min(2, "Ask a question").max(300) });
 
-// ─── CCTV (Phase 15) ─────────────────────────────────────────────────────────
-
-const httpUrl = z.preprocess(
-  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-  z
-    .string()
-    .trim()
-    .max(500)
-    .refine((u) => /^https?:\/\//i.test(u), "Must start with http:// or https://")
-    .optional(),
-);
-
-export const cameraSchema = z.object({
-  cameraId: optionalId,
-  name: z.string().trim().min(2, "Name the camera").max(80),
-  location: z.string().trim().min(2, "Where is it?").max(120),
-  streamUrl: httpUrl,
-  playbackUrl: httpUrl,
-  eventId: optionalId,
-  retentionDays: z.coerce.number().int("Whole days").min(1, "At least 1 day").max(90, "Keep footage at most 90 days"),
-  isActive: z.boolean().default(true),
-});
-
-export const cameraIncidentSchema = z.object({
-  cameraId: id,
-  title: z.string().trim().min(3, "Say what happened").max(120),
-  severity: z.enum(["LOW", "MEDIUM", "HIGH"]),
-  seenAt: z.coerce.date(),
-});
-
-export const cameraViewSchema = z.object({ cameraId: id, kind: z.enum(["LIVE", "PLAYBACK"]) });
-
 // ─── Announcements (Phases 22, 24) ───────────────────────────────────────────
 
-const AUDIENCE_VALUES = ["MEMBERS", "EXPIRING", "VOLUNTEERS", "ALL"] as const;
+const AUDIENCE_VALUES = ["MEMBERS", "TODAY", "EXPIRING", "VOLUNTEERS", "ALL"] as const;
 
-export const draftAnnouncementSchema = z.object({
-  brief: z.string().trim().min(10, "Describe what to announce (a sentence or two)").max(1000),
-  audience: z.enum(AUDIENCE_VALUES),
-  useAi: z.boolean().default(true),
-});
+export const draftAnnouncementSchema = z
+  .object({
+    brief: z.string().trim().max(1000).default(""),
+    audience: z.enum(AUDIENCE_VALUES),
+    useAi: z.boolean().default(true),
+    // A ready-made template: used as-is instead of drafting from a brief.
+    title: z.string().trim().max(120).optional(),
+    body: z.string().trim().max(5000).optional(),
+  })
+  .refine((v) => (v.title && v.body) || v.brief.length >= 10, {
+    path: ["brief"],
+    message: "Pick a template or describe what to announce (a sentence or two)",
+  });
 
 export const saveAnnouncementSchema = z.object({
   announcementId: id,

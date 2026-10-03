@@ -9,21 +9,9 @@ import { param } from "@/lib/format";
 import { loadCalendar } from "@/lib/calendar/load";
 import { KIND_LABEL, dayKey, groupByDay, monthGrid, monthKey, parseMonth, type CalItem } from "@/lib/calendar/grid";
 import { AddEntryDialog } from "./add-entry";
+import { KIND_DOT, MonthGrid } from "./month-grid";
 
 export const metadata: Metadata = { title: "Calendar" };
-
-const KIND_DOT: Record<CalItem["kind"], string> = {
-  event: "bg-primary",
-  sales: "bg-info",
-  meeting: "bg-violet-500",
-  deadline: "bg-warning",
-  expiry: "bg-destructive",
-  fundraiser: "bg-success",
-  task: "bg-amber-600",
-  payment: "bg-rose-500",
-};
-
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default async function CalendarPage(props: PageProps<"/calendar">) {
   // Everyone signed in gets a calendar; each source inside is permission-filtered.
@@ -74,42 +62,20 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
         </ul>
       </div>
 
-      {/* Month grid on larger screens */}
-      <div className="bg-border hidden grid-cols-7 gap-px overflow-hidden rounded-xl border md:grid">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="bg-muted/50 text-muted-foreground px-2 py-1.5 text-xs font-medium">
-            {d}
-          </div>
-        ))}
-        {weeks.flat().map((d) => {
-          const list = byDay.get(dayKey(d)) ?? [];
-          const other = d.getMonth() !== month;
-          return (
-            <div key={d.toISOString()} className={cn("bg-card min-h-28 p-1.5", other && "bg-muted/30")}>
-              <p
-                className={cn(
-                  "mb-1 inline-flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
-                  other && "text-muted-foreground",
-                  dayKey(d) === today && "bg-primary text-primary-foreground font-semibold",
-                )}
-              >
-                {d.getDate()}
-              </p>
-              <ul className="grid gap-0.5">
-                {list.slice(0, 4).map((i) => (
-                  <li key={i.id}>
-                    <Item item={i} compact />
-                  </li>
-                ))}
-                {list.length > 4 && <li className="text-muted-foreground px-1 text-[11px]">+{list.length - 4} more</li>}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
+      {/* Month grid — every day opens a pop-up with all of its items */}
+      <MonthGrid
+        days={weeks.flat().map((d) => ({
+          iso: d.toISOString(),
+          date: d.getDate(),
+          inMonth: d.getMonth() === month,
+          isToday: dayKey(d) === today,
+          items: (byDay.get(dayKey(d)) ?? []).map((i) => ({ ...i, date: i.date.toISOString() })),
+        }))}
+      />
 
+      <h2 className="mt-8 mb-3 text-sm font-semibold">This month, in order</h2>
       {/* Agenda on phones */}
-      <ol className="bg-card divide-y rounded-xl border md:hidden">
+      <ol className="bg-card divide-y rounded-2xl border shadow-sm">
         {inMonth.length === 0 && <li className="text-muted-foreground p-4 text-sm">Nothing scheduled this month.</li>}
         {inMonth.map((i) => (
           <li key={i.id} className="flex gap-3 p-3">

@@ -118,6 +118,7 @@ export const confirmMeeting = guardedAction({ permission: "calendar.manage", sch
         confirmedAt: new Date(),
         extracted: {
           summary: input.summary,
+          attendees: input.attendees,
           decisions: input.decisions,
           questions: input.questions,
           actions: input.actions.map((a) => ({ task: a.task, ownerId: a.ownerId ?? null, due: a.due ?? null, created: a.create })),

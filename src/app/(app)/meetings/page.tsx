@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { fmtDateTime, toDateInput } from "@/lib/format";
 import { NewMeetingDialog } from "./new-meeting";
 
-export const metadata: Metadata = { title: "Meetings" };
+export const metadata: Metadata = { title: "Minutes of Meeting" };
 
 export default async function MeetingsPage() {
   const user = await requirePermission("calendar.view");
@@ -35,7 +35,7 @@ export default async function MeetingsPage() {
   return (
     <>
       <PageHeader
-        title="Meetings"
+        title="Minutes of Meeting"
         description="Paste notes or a transcript — get decisions, action items and open questions. Tasks are created only after you confirm."
         actions={can(user, "calendar.manage") && <NewMeetingDialog committees={committees} today={toDateInput(new Date())} />}
       />

@@ -22,9 +22,10 @@ import {
 import { Field, NativeSelect } from "@/components/form/field";
 import { publishAnnouncement, saveAnnouncement } from "../actions";
 
-type Audience = "MEMBERS" | "EXPIRING" | "VOLUNTEERS" | "ALL";
+type Audience = "MEMBERS" | "TODAY" | "EXPIRING" | "VOLUNTEERS" | "ALL";
 const LABEL: Record<Audience, string> = {
   MEMBERS: "active members",
+  TODAY: "members whose membership ends today",
   EXPIRING: "members whose membership ends this week",
   VOLUNTEERS: "volunteers",
   ALL: "everyone with an account",

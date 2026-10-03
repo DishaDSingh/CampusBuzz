@@ -7,7 +7,7 @@
  */
 
 export type ActionItem = { task: string; owner: string | null; due: string | null };
-export type Extracted = { summary: string; decisions: string[]; actions: ActionItem[]; questions: string[] };
+export type Extracted = { summary: string; attendees: string[]; decisions: string[]; actions: ActionItem[]; questions: string[] };
 
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -72,12 +72,25 @@ const QUESTION = /^(?:open question|question|q|tbd|to be decided)\s*[:\-–]\s*/
 
 export function extractOffline(notes: string, meetingDate: Date, title = "Meeting"): Extracted {
   const decisions: string[] = [];
+  const attendees: string[] = [];
   const actions: ActionItem[] = [];
   const questions: string[] = [];
 
   for (const raw of notes.split(/\r?\n/)) {
     const line = clean(raw);
     if (line.length < 4) continue;
+
+    // "Attendees: Ishita, Rohan, Priya" / "Present - …"
+    const present = line.match(/^(?:attendees|present|members present|attendance)\s*[:\-–]\s*(.+)$/i);
+    if (present) {
+      attendees.push(
+        ...present[1]
+          .split(/,|;|\band\b/)
+          .map((n) => n.trim())
+          .filter(Boolean),
+      );
+      continue;
+    }
 
     if (ACTION.test(line)) {
       const task = line.replace(ACTION, "");
@@ -107,6 +120,7 @@ export function extractOffline(notes: string, meetingDate: Date, title = "Meetin
   ].filter(Boolean);
   return {
     summary: parts.length ? `${title}: ${parts.join(", ")}.` : `${title}: no decisions or action items were found in the notes.`,
+    attendees: [...new Set(attendees)],
     decisions,
     actions,
     questions,

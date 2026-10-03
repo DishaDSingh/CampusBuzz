@@ -10,9 +10,11 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/form/field";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtRelative, pageParam, param } from "@/lib/format";
+import { TIERS, byHierarchy, tierFor, topRankOf } from "@/lib/rbac/hierarchy";
+import { Fragment } from "react";
 
 export const metadata: Metadata = { title: "Users" };
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 40;
 const STATUSES = ["ACTIVE", "INVITED", "SUSPENDED"] as const;
 
 export default async function UsersPage(props: PageProps<"/admin/users">) {
@@ -40,9 +42,6 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
   const [users, total, roles, departments] = await Promise.all([
     db.user.findMany({
       where,
-      orderBy: [{ isMasterAdmin: "desc" }, { name: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
       select: {
         id: true,
         name: true,
@@ -52,7 +51,10 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
         isMasterAdmin: true,
         lastLoginAt: true,
         department: { select: { name: true } },
-        roles: { orderBy: { role: { rank: "asc" } }, select: { role: { select: { id: true, name: true, color: true } } } },
+        roles: {
+          orderBy: { role: { rank: "asc" } },
+          select: { role: { select: { id: true, name: true, color: true, rank: true, isSystem: true } } },
+        },
       },
     }),
     db.user.count({ where }),
@@ -60,6 +62,14 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
     db.department.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
+  // Council first, then heads, committee, volunteers, members — as per the hierarchy.
+  const ordered = byHierarchy(users.map((u) => ({ ...u, topRank: topRankOf(u.roles) })));
+  const pageUsers = ordered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const tierCounts = new Map<string, number>();
+  for (const u of ordered) {
+    const t = tierFor(u.topRank, u.isMasterAdmin);
+    tierCounts.set(t, (tierCounts.get(t) ?? 0) + 1);
+  }
   const filtered = !!(q || roleId || status || departmentId);
   const exportQuery = new URLSearchParams(
     Object.entries({ q, role: roleId, status, dept: departmentId }).filter(([, v]) => v) as [string, string][],
@@ -69,7 +79,7 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
     <>
       <PageHeader
         title="Users"
-        description="Everyone with a CampusBuzz account. Access comes from roles plus per-person exceptions."
+        description="Everyone with an account, grouped by position — council first, then heads, committee, volunteers and members."
         actions={
           <>
             {can(user, "users.export") && (
@@ -132,7 +142,7 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
         </div>
       </form>
 
-      {users.length === 0 ? (
+      {pageUsers.length === 0 ? (
         <EmptyState icon={UsersIcon} title={filtered ? "No users match these filters" : "No users yet"}>
           {filtered ? "Try a different search or clear the filters." : "Add your first teammate to get started."}
         </EmptyState>
@@ -149,7 +159,10 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u) => {
+              {pageUsers.map((u, i) => {
+                const tier = tierFor(u.topRank, u.isMasterAdmin);
+                const prev = i > 0 ? tierFor(pageUsers[i - 1].topRank, pageUsers[i - 1].isMasterAdmin) : null;
+                const info = TIERS.find((t) => t.key === tier)!;
                 const badges = (
                   <>
                     {u.isMasterAdmin && <MasterBadge />}
@@ -162,32 +175,45 @@ export default async function UsersPage(props: PageProps<"/admin/users">) {
                   </>
                 );
                 return (
-                  <TableRow key={u.id} className="relative">
-                    <TableCell className="pl-4">
-                      <Link href={`/admin/users/${u.id}`} className="font-medium after:absolute after:inset-0 hover:underline">
-                        {u.name}
-                      </Link>
-                      <p className="text-muted-foreground text-xs">
-                        {u.email}
-                        {u.studentId && <span className="hidden sm:inline"> · {u.studentId}</span>}
-                      </p>
-                      {/* On phones roles and status fold under the name instead of extra columns. */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:hidden">
-                        {badges}
+                  <Fragment key={u.id}>
+                    {tier !== prev && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={5} className="bg-[color-mix(in_oklch,var(--page-accent)_8%,var(--muted))] py-2 pl-4">
+                          <span className="font-semibold">{info.label}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            {tierCounts.get(tier)} {tierCounts.get(tier) === 1 ? "person" : "people"} · {info.hint}
+                            {i === 0 && page > 1 ? " (continued)" : ""}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    <TableRow className="relative">
+                      <TableCell className="pl-4">
+                        <Link href={`/admin/users/${u.id}`} className="font-medium after:absolute after:inset-0 hover:underline">
+                          {u.name}
+                        </Link>
+                        <p className="text-muted-foreground text-xs">
+                          {u.email}
+                          {u.studentId && <span className="hidden sm:inline"> · {u.studentId}</span>}
+                        </p>
+                        {/* On phones roles and status fold under the name instead of extra columns. */}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:hidden">
+                          {badges}
+                          <StatusLabel status={u.status} />
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <div className="flex max-w-xs flex-wrap gap-1">{badges}</div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground hidden md:table-cell">{u.department?.name ?? "—"}</TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <StatusLabel status={u.status} />
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <div className="flex max-w-xs flex-wrap gap-1">{badges}</div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground hidden md:table-cell">{u.department?.name ?? "—"}</TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <StatusLabel status={u.status} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground hidden pr-4 text-right lg:table-cell">
-                      {fmtRelative(u.lastLoginAt)}
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground hidden pr-4 text-right lg:table-cell">
+                        {fmtRelative(u.lastLoginAt)}
+                      </TableCell>
+                    </TableRow>
+                  </Fragment>
                 );
               })}
             </TableBody>

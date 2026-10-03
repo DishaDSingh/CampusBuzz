@@ -73,14 +73,6 @@ const FEATURES = [
     never: "Never publishes a product or changes prices.",
     offline: "Template designer.",
   },
-  {
-    name: "What if?",
-    href: "/simulate",
-    ai: "No AI — transparent formulas on a copy of the data.",
-    human: "Changes assumptions and compares.",
-    never: "Has no way to change live data at all.",
-    offline: "Always works offline.",
-  },
 ];
 
 export default async function AiPage() {

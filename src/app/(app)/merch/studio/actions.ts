@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { fail, guardedAction, ok } from "@/lib/action";
 import { AI_UNAVAILABLE_MESSAGE, structured } from "@/lib/ai/claude";
-import { sanitizeSvg, templateArtwork, TEMPLATE_STYLES } from "@/lib/merch/artwork";
+import { sanitizeSvg, templateArtwork } from "@/lib/merch/artwork";
+import { parseMerchPrompt } from "@/lib/merch/prompt";
 import { APPAREL_SIZES, PRODUCT_TYPES, skuFor, suggestedMemberPrice } from "@/lib/merch/rules";
 import { formatINR, rupeesToPaise } from "@/lib/membership/rules";
 import { designIdSchema, designSchema, generateArtworkSchema, reviewDesignSchema } from "@/lib/validation/schemas";
@@ -61,24 +62,13 @@ Brief: ${input.prompt}`,
     }
   }
 
-  // Offline fallback: choose a template style from words in the prompt.
-  const p = input.prompt.toLowerCase();
-  const style =
-    TEMPLATE_STYLES.find((s) => p.includes(s.key))?.key ??
-    (/(college|varsity|sport|team|athletic)/.test(p)
-      ? "varsity"
-      : /(badge|crest|emblem|circle)/.test(p)
-        ? "badge"
-        : /(bold|big|loud)/.test(p)
-          ? "stacked"
-          : /(retro|vintage|stamp)/.test(p)
-            ? "stamp"
-            : "minimal");
-  const quoted = input.prompt.match(/["“](.+?)["”]/)?.[1];
+  // Offline fallback: read style and text from the prompt ("classic … for Diwali Gala 2026").
+  const parsed = parseMerchPrompt(input.prompt);
+  const style = parsed.style ?? "varsity";
   const svg = templateArtwork({
     style,
-    title: quoted ?? org?.name ?? "CampusBuzz",
-    subtitle: String(new Date().getFullYear()),
+    title: parsed.title ?? org?.shortName ?? org?.name ?? "CampusBuzz",
+    subtitle: parsed.subtitle ?? String(new Date().getFullYear()),
     ink: input.inkColor,
   });
   const reason = ai.ok ? "invalid" : ai.reason;

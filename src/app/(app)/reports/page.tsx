@@ -7,7 +7,7 @@ import { EmptyState, PageHeader } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fmtDate, param } from "@/lib/format";
-import { REPORT_TYPES, REPORT_TYPE_KEYS, type ReportType } from "@/lib/reports/types";
+import { REPORT_TYPES, REPORT_TYPE_KEYS, summarizeReport, type ReportType, type Section } from "@/lib/reports/types";
 
 export const metadata: Metadata = { title: "Reports" };
 
@@ -19,7 +19,16 @@ export default async function ReportsPage(props: PageProps<"/reports">) {
     where: type ? { type } : {},
     orderBy: { updatedAt: "desc" },
     take: 100,
-    select: { id: true, title: true, type: true, status: true, source: true, updatedAt: true, createdBy: { select: { name: true } } },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      status: true,
+      source: true,
+      updatedAt: true,
+      sections: true,
+      createdBy: { select: { name: true } },
+    },
   });
 
   return (
@@ -69,6 +78,7 @@ export default async function ReportsPage(props: PageProps<"/reports">) {
                   <p className="text-muted-foreground text-xs">
                     {REPORT_TYPES[r.type as ReportType]?.label ?? r.type} · {r.createdBy?.name ?? "—"} · updated {fmtDate(r.updatedAt)}
                   </p>
+                  <p className="mt-1 line-clamp-2 text-sm">{summarizeReport(r.sections as Section[]).headline}</p>
                 </div>
                 <span className={cn("text-xs font-medium", r.status === "FINAL" ? "text-success" : "text-muted-foreground")}>
                   {r.status === "FINAL" ? "Final" : "Draft"}

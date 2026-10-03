@@ -4,7 +4,7 @@ import { PaletteIcon, PlusIcon } from "lucide-react";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/current-user";
 import { EmptyState, PageHeader } from "@/components/common";
-import { MockupFace } from "@/components/merch/mockup";
+import { MockupFace, PhotoMockup, hasPhotoMockup } from "@/components/merch/mockup";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fmtRelative } from "@/lib/format";
@@ -47,16 +47,28 @@ export default async function StudioPage() {
                 href={`/merch/studio/${d.id}`}
                 className="bg-card hover:border-primary/40 block overflow-hidden rounded-xl border transition-colors"
               >
-                <div className="from-muted/60 to-background aspect-square bg-linear-to-b p-6">
-                  <MockupFace
+                {hasPhotoMockup(d.productType as ProductTypeKey) ? (
+                  <PhotoMockup
                     type={d.productType as ProductTypeKey}
-                    side="front"
                     color={d.baseColor}
                     artwork={d.artworkSvg ? svgDataUri(d.artworkSvg) : d.logoUploadId ? `/api/uploads/${d.logoUploadId}` : null}
                     text={d.frontText}
                     ink={d.inkColor}
+                    crop="square"
+                    className="rounded-none"
                   />
-                </div>
+                ) : (
+                  <div className="from-muted/60 to-background aspect-square bg-linear-to-b p-6">
+                    <MockupFace
+                      type={d.productType as ProductTypeKey}
+                      side="front"
+                      color={d.baseColor}
+                      artwork={d.artworkSvg ? svgDataUri(d.artworkSvg) : d.logoUploadId ? `/api/uploads/${d.logoUploadId}` : null}
+                      text={d.frontText}
+                      ink={d.inkColor}
+                    />
+                  </div>
+                )}
                 <div className="border-t p-4">
                   <p className="font-medium">{d.name}</p>
                   <p className="mt-1 flex items-center justify-between gap-2 text-xs">

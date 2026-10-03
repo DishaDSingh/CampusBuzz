@@ -381,7 +381,7 @@ export function AccountActions({
       title: user.isMasterAdmin ? "Remove Master Admin" : "Make Master Admin",
       body: user.isMasterAdmin
         ? "They keep their roles but lose unrestricted access."
-        : "Grants unrestricted access to everything, including finance, CCTV and the audit log.",
+        : "Grants unrestricted access to everything, including finance and the audit log.",
       action: user.isMasterAdmin ? "Remove" : "Make Master Admin",
       danger: !user.isMasterAdmin,
       run: () => run(() => setMasterAdmin({ userId: user.id, value: !user.isMasterAdmin })),

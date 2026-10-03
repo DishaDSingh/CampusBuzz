@@ -5,6 +5,7 @@ import { extractOffline, type Extracted } from "./extract";
 
 const Schema = z.object({
   summary: z.string().describe("2–3 sentence summary of what the meeting covered and concluded."),
+  attendees: z.array(z.string()).describe("Names of people listed as present, if the notes say."),
   decisions: z.array(z.string()).describe("Each decision that was actually made, one short sentence each."),
   actions: z.array(
     z.object({

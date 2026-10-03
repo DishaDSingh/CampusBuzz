@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth/current-user";
 import { fmtDate } from "@/lib/format";
 import { REPORT_TYPES, type ReportType, type Section } from "@/lib/reports/types";
 import { PrintButton } from "./print-button";
+import { ReportGlance } from "@/components/report-glance";
 
 export const metadata: Metadata = { title: "Print report" };
 
@@ -34,6 +35,7 @@ export default async function PrintReportPage(props: PageProps<"/print/reports/[
         {r.status !== "FINAL" && " · DRAFT"}
       </p>
       <hr className="my-6 border-neutral-200" />
+      <ReportGlance sections={sections} print />
       {sections.map((s, i) => (
         <section key={i} className="mb-6 break-inside-avoid">
           <h2 className="mb-2 text-lg font-semibold">{s.heading}</h2>

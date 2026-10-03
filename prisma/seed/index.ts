@@ -7,7 +7,6 @@ import { seedMerch } from "./merch";
 import { seedFundraisers } from "./fundraisers";
 import { seedFinance } from "./finance";
 import { seedMemory } from "./memory";
-import { seedSecurity } from "./security";
 import { seedAnnouncements } from "./announcements";
 import { ensureMasterAdmin } from "./master";
 
@@ -86,9 +85,6 @@ async function main() {
 
     console.log("Phases 14-19: memory, meetings, calendar deadlines...");
     console.table(await seedMemory(db));
-
-    console.log("Phase 15: security cameras...");
-    console.table(await seedSecurity(db));
 
     console.log("Phase 22: announcements...");
     console.table(await seedAnnouncements(db));

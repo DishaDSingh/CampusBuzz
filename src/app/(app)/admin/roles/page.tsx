@@ -6,6 +6,7 @@ import { PageHeader, RoleBadge } from "@/components/common";
 import { ALL_PERMISSION_KEYS, ALL_PERMISSIONS } from "@/lib/rbac/catalog";
 import { CreateRoleDialog } from "./role-forms";
 import { people, plural } from "@/lib/format";
+import { TIERS, effectiveRank, tierFor } from "@/lib/rbac/hierarchy";
 
 export const metadata: Metadata = { title: "Roles & permissions" };
 
@@ -14,7 +15,7 @@ const SENSITIVE = new Set(ALL_PERMISSIONS.filter((p) => p.sensitive).map((p) => 
 export default async function RolesPage() {
   const user = await requirePermission("roles.view");
   const roles = await db.role.findMany({
-    orderBy: [{ isSystem: "desc" }, { rank: "asc" }, { name: "asc" }],
+    orderBy: [{ rank: "asc" }, { name: "asc" }],
     select: {
       id: true,
       name: true,
@@ -22,25 +23,28 @@ export default async function RolesPage() {
       color: true,
       isSystem: true,
       permissions: { select: { permissionKey: true } },
+      rank: true,
       _count: { select: { users: true } },
+      users: { orderBy: { user: { name: "asc" } }, take: 12, select: { user: { select: { id: true, name: true } } } },
     },
   });
-  const masterCount = await db.user.count({ where: { isMasterAdmin: true } });
+  const masters = await db.user.findMany({ where: { isMasterAdmin: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const masterCount = masters.length;
 
-  const groups = [
-    {
-      title: "Built-in roles",
-      hint: "Created with the organization. Re-permission freely; they can't be renamed or deleted.",
-      items: roles.filter((r) => r.isSystem),
-    },
-    { title: "Custom roles", hint: "Roles your organization created for its own structure.", items: roles.filter((r) => !r.isSystem) },
-  ];
+  // Same hierarchy as Users: council first, then heads, committee, volunteers, members.
+  const groups = TIERS.filter((t) => t.key !== "master").map((t) => ({
+    title: t.label,
+    hint: t.hint,
+    items: roles
+      .filter((r) => tierFor(effectiveRank(r), false) === t.key)
+      .sort((a, b) => effectiveRank(a) - effectiveRank(b) || a.rank - b.rank),
+  }));
 
   return (
     <>
       <PageHeader
         title="Roles & permissions"
-        description="Roles bundle permissions. Nobody sees everything by default — only Master Admins have unrestricted access."
+        description="Roles in order of seniority, with the people who hold each one. Only Master Admins have unrestricted access."
         actions={can(user, "roles.manage") && <CreateRoleDialog roles={roles.map((r) => ({ id: r.id, name: r.name }))} />}
       />
 
@@ -50,16 +54,16 @@ export default async function RolesPage() {
       >
         <span className="font-medium">Master Admin</span>
         <span className="text-muted-foreground">All {ALL_PERMISSION_KEYS.length} permissions · not a role, a protected account flag</span>
-        <span className="text-muted-foreground ml-auto tabular-nums">{people(masterCount)}</span>
+        <span className="ml-auto truncate">{masters.map((m) => m.name).join(", ") || people(masterCount)}</span>
       </Link>
 
       <div className="grid gap-8">
         {groups.map((g) => (
           <section key={g.title}>
-            <h2 className="font-medium">{g.title}</h2>
+            <h2 className="font-heading text-lg font-semibold">{g.title}</h2>
             <p className="text-muted-foreground mb-3 text-sm">{g.hint}</p>
             {g.items.length === 0 ? (
-              <p className="text-muted-foreground rounded-xl border border-dashed px-4 py-6 text-center text-sm">No custom roles yet.</p>
+              <p className="text-muted-foreground rounded-xl border border-dashed px-4 py-6 text-center text-sm">No roles at this level.</p>
             ) : (
               <ul className="bg-card divide-y overflow-hidden rounded-xl border">
                 {g.items.map((r) => {
@@ -74,6 +78,18 @@ export default async function RolesPage() {
                         <div className="min-w-0">
                           <RoleBadge name={r.name} color={r.color} />
                           {r.description && <p className="text-muted-foreground mt-1 line-clamp-1 text-sm">{r.description}</p>}
+                          <p className="mt-1.5 text-sm">
+                            {r.users.length ? (
+                              <>
+                                {r.users.map((u) => u.user.name).join(", ")}
+                                {r._count.users > r.users.length && (
+                                  <span className="text-muted-foreground"> and {r._count.users - r.users.length} more</span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground italic">Nobody holds this role yet</span>
+                            )}
+                          </p>
                         </div>
                         <div className="text-muted-foreground text-xs">
                           <div className="bg-muted mb-1 h-1.5 overflow-hidden rounded-full">

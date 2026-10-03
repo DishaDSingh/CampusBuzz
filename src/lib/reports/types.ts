@@ -98,3 +98,46 @@ export function keepsNumbers(original: Section, rewritten: Section) {
   const have = new Set(numbersIn(rewritten.body));
   return numbersIn(original.body).every((n) => have.has(n));
 }
+
+// ─── "At a glance" summary ───────────────────────────────────────────────────
+
+/** Sections whose figures matter most, in the order readers look for them. */
+const KEY_HEADINGS = /summary|in short|net|revenue|income|money|expenses|attendance|growth|donations|tasks|sales|financial|membership/i;
+const hasNumber = (s: string) => /\d/.test(s);
+const sentences = (text: string) =>
+  text
+    .split(/\n/)
+    .map((l) => l.replace(/^-\s*/, "").trim())
+    .filter((l) => l && !l.startsWith("(Add"))
+    .flatMap((l) => (l.length > 160 ? l.split(/(?<=\.)\s+/) : [l]));
+
+/**
+ * A short, faithful summary pulled straight from the report: the opening
+ * sentence as the headline, then the key figures (one per important section).
+ * Nothing is invented — every line exists in the report.
+ */
+export function summarizeReport(sections: Section[]): { headline: string; points: string[] } {
+  const first = sections.find((s) => !s.body.startsWith("(Add"));
+  // Headline = the opening sentence; the rest of the opening paragraph leads the key points.
+  const opening = first
+    ? first.body
+        .replace(/^-\s*/gm, "")
+        .split(/(?<=[.!?])\s+(?=[A-Z0-9₹])/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+    : [];
+  const headline = opening[0] ?? "";
+  const points: string[] = opening.slice(1).filter(hasNumber).slice(0, 2);
+  const ordered = [
+    ...sections.filter((s) => s !== first).filter((s) => KEY_HEADINGS.test(s.heading)),
+    ...sections.filter((s) => s !== first && !KEY_HEADINGS.test(s.heading)),
+  ];
+  for (const s of ordered) {
+    if (points.length >= 5) break;
+    const line = sentences(s.body).find(hasNumber);
+    if (!line || line === headline) continue;
+    points.push(line.length > 140 ? `${line.slice(0, 137)}…` : /^[A-Z]/.test(line) && line.includes(":") ? line : `${s.heading}: ${line}`);
+    if (points.length >= 5) break;
+  }
+  return { headline, points };
+}

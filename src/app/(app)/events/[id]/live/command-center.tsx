@@ -164,7 +164,7 @@ export function CommandCenter({ eventId, capacity, canCheckIn }: { eventId: stri
             </ul>
           </section>
           <section className="bg-card text-muted-foreground rounded-xl border p-5 text-sm">
-            <h2 className="text-foreground font-medium">Volunteers · CCTV · Announcements</h2>
+            <h2 className="text-foreground font-medium">Volunteers · Announcements</h2>
             <p className="mt-1">These panels connect when their modules are enabled.</p>
           </section>
         </div>

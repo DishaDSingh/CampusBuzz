@@ -14,7 +14,10 @@ export const draftAnnouncement = guardedAction(
   { permission: "announcements.create", schema: draftAnnouncementSchema },
   async (input, actor) => {
     const org = await db.organization.findFirst({ select: { name: true } });
-    const d = await draftFromBrief(input.brief, org?.name ?? "the committee", input.useAi && aiConfigured());
+    const d =
+      input.title && input.body
+        ? { title: input.title, body: input.body, source: "template" as const }
+        : await draftFromBrief(input.brief, org?.name ?? "the committee", input.useAi && aiConfigured());
     const a = await db.$transaction(async (tx) => {
       const a = await tx.announcement.create({
         data: { title: d.title, body: d.body, audience: input.audience, source: d.source, createdById: actor.id },

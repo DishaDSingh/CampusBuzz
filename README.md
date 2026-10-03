@@ -4,15 +4,25 @@
 volunteers, fundraisers and finance — replacing spreadsheets, cash notebooks and chat threads — with a layer that
 explains what's happening and helps plan what's next. Every AI feature proposes; a person decides.
 
-| Layer          | What it covers                                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Operate**    | Members & digital pass · Events, tickets & check-in · Merch · Volunteers · Fundraisers · Finance · Security cameras |
-| **Understand** | Insights & organization pulse · Ask (data copilot) · Analytics · Reports & summaries                                |
-| **Anticipate** | What-if simulator · Calendar & smart reminders · Meeting intelligence · Organization memory                         |
+| Layer          | What it covers                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| **Operate**    | Members & digital pass · Events, tickets & check-in · Merch · Volunteers · Fundraisers · Finance |
+| **Understand** | Insights & organization pulse · Ask (data copilot) · Analytics · Reports & summaries             |
+| **Anticipate** | Calendar & smart reminders · Minutes of meeting · Organization memory                            |
 
 > All 25 phases are built: foundation and access control (1–2), the core modules (3–8), analytics, insights, copilot,
-> summaries and reports (9–13), calendar, CCTV, memory, simulation, pulse, meetings and handover (14–20), audit,
+> summaries and reports (9–13), calendar, memory, pulse, minutes of meeting and handover (14–20), audit,
 > role dashboards, UI and AI principles (21–24), and the product architecture below (25).
+
+### Latest polish
+
+- **Announcements**: pick an audience (with live counts, e.g. "membership ends today") and a matching message template is filled in — fee reminders, event invites, volunteer calls — or describe it and let AI draft.
+- **Calendar**: click any date for a pop-up of everything on that day.
+- **Laptop-friendly door**: pass verification and ticket check-in default to type-or-search; the camera is optional.
+- **Merch studio**: describe the merch in one line ("classic navy hoodie for Diwali Gala 2026") and get a professional design on real hoodie/tee photos.
+- **Volunteers** at a glance (free / busy / overloaded), **reports** with an "At a glance" summary, **minutes of meeting**.
+- **Users** and **Roles** grouped by hierarchy — Master Admin, council, heads, committee, volunteers, members — with names.
+- Removed: the What-if simulator and the CCTV module (privacy).
 
 ---
 
@@ -39,24 +49,24 @@ All seeded accounts share the password defined as `DEMO_PASSWORD` in [`prisma/se
 | Persona       | Email                         | What to look at                                                               |
 | ------------- | ----------------------------- | ----------------------------------------------------------------------------- |
 | Master Admin  | `admin@horizon.test`          | Everything; can grant Master Admin                                            |
-| President     | `president@horizon.test`      | Pulse + insights on the dashboard, What if?, reports, announcements, no CCTV  |
+| President     | `president@horizon.test`      | Pulse + insights on the dashboard, reports, announcements                     |
 | Treasurer     | `treasurer@horizon.test`      | Finance: approvals, pay-backs, budgets; admin pages return "no access"        |
 | Secretary     | `secretary@horizon.test`      | Can create users but **not** assign roles                                     |
-| Event Head    | `events@horizon.test`         | Organizes the Diwali Gala; sees only that event's cameras; DENY on refunds    |
-| Security Head | `security@horizon.test`       | Every camera, live + playback; each view is logged                            |
+| Event Head    | `events@horizon.test`         | Organizes the Diwali Gala; DENY on refunds                                    |
+| Security Head | `security@horizon.test`       | Door control: ticket check-ins and pass verification                          |
 | Member        | `bhamini.sharma@horizon.test` | The simple member view: pass, events, tickets, merch, announcements, calendar |
 
 Other personas: `vp@`, `volunteers@`, `merch@`, `comms@`, `deputy.events@`, `fundraising@` (all `@horizon.test`).
 
 Stories baked into the data (numbers for the full dataset): **42 members expire within 7 days**, 14 sign-ups are waiting for payment
 confirmation (most with a UPI reference to check), and 48 lapsed members never renewed. Every seeded member's
-standing is visible on **/members**; regular members see their own pass at **/me/pass**. **Diwali Gala Night 2026** (in
+standing is visible on **/members**; regular members see their own pass from **My membership**. **Diwali Gala Night 2026** (in
 ~5 weeks) has ticket sales that started strong and then slowed, and the **Freshers' Welcome Mixer** is live today, so the
 command center shows real arrivals. The **Winter Clothes Drive** fundraiser is behind its goal with two overdue tasks.
 On **/finance** the treasurer has a queue of expense claims to review (Freshers snacks among them) and four people
 waiting to be paid back. **Insights** flag the Gala slowdown and the expiring memberships (with a one-click renewal
 reminder draft), last year's Gala debrief and lessons are in **Memory**, this year's Gala planning notes are waiting in
-**Meetings** to be turned into tasks, and an AI-written renewal reminder waits in **Announcements** for a person to send.
+**Minutes of Meeting** to be turned into tasks, and an AI-written renewal reminder waits in **Announcements** for a person to send.
 
 ---
 
@@ -168,17 +178,14 @@ Each phase lists only what it **adds**. Nothing is added unless it earns its pla
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **One calendar**          | Events, sales closing, meetings, deadlines, expiries, fundraiser dates, your tasks — permission-filtered |
 | **Smart reminders**       | Event in 2 days, task overdue, sales closing, deadline tomorrow, meeting tomorrow — deduplicated         |
-| **Meeting intelligence**  | Notes/transcript → decisions, actions (owner + date), questions; tasks only after "Confirm"              |
+| **Minutes of meeting**    | Notes → formal MoM (attendees, decisions, action table, open questions), printable; tasks after Confirm  |
 | **Offline memory search** | Year-aware ranking over lessons, decisions, vendors, sponsors, reports, meetings and past events         |
 
-### Phases 15, 17, 21 · CCTV, what-if & audit
+### Phase 21 · Audit
 
-| Adds                     | Why                                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Scoped CCTV module**   | Security Head: all cameras; Event Head: own events' cameras (live only); everyone else: nothing                |
-| **Logged viewing**       | Privacy notice + purpose confirmation; every live/playback view logged with IP and device; no face recognition |
-| **Read-only simulator**  | A copy of live data + transparent formulas; the page has no server actions, so it can't change anything        |
-| **Readable audit trail** | Who, what, when, before → after, IP and device for every action                                                |
+| Adds                     | Why                                                             |
+| ------------------------ | --------------------------------------------------------------- |
+| **Readable audit trail** | Who, what, when, before → after, IP and device for every action |
 
 ### Phases 22–25 · Dashboards, UI, AI principles & architecture
 
@@ -211,8 +218,8 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable AI features; without it they fall ba
 **Phase 2 — Role & permission engine**
 
 - **67 permissions across 21 modules** declared in code ([`src/lib/rbac/catalog.ts`](src/lib/rbac/catalog.ts)) and
-  synced to the database so assignments are FK-enforced. Future modules (CCTV, finance, AI…) are declared up front.
-- **12 built-in roles** (President … General Member, plus Security Head) and **custom roles** (create, copy, edit, delete).
+  synced to the database so assignments are FK-enforced. Future modules (finance, AI…) are declared up front.
+- **12 built-in roles** (President … General Member, plus Security Head for door control) and **custom roles** (create, copy, edit, delete).
 - **Per-person overrides**: GRANT or DENY a single permission with a reason. DENY always wins over roles.
 - Effective permissions = ∪ role permissions + GRANTs − DENYs. The user page shows _where each permission comes from_.
 - **Anti-escalation rules**: you can only grant or revoke permissions you hold; non-masters can't change their own access
@@ -232,7 +239,7 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable AI features; without it they fall ba
   their UPI reference; the treasurer checks it and confirms.
 - **Digital member pass**: member number, status, validity, eligible benefits, committees and contribution history, a
   QR code, and a live ticking clock so a screenshot is easy to spot. Members can rotate their QR if it leaks.
-- **Door verification**: camera scanner + manual lookup. A scanned QR opens a big green/red result — only for people with
+- **Door verification**: type-or-search lookup (default, laptop-friendly; USB scanners work too) or the camera. A scanned QR opens a big green/red result — only for people with
   `members.verify`, so a stranger scanning a pass learns nothing. Every check is logged.
 - **Renewal reminders**: in-app notifications at 30 / 7 / 1 days before expiry and after lapsing, idempotent via
   dedupe keys. Staff can also trigger them manually.
@@ -245,7 +252,7 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable AI features; without it they fall ba
 - Ticket types with **member and non-member prices**, inventory, per-order limits and members-only types. An active
   member gets member pricing on **one ticket per event** (their own); extra tickets are charged the public price.
 - **Online sales** (seats held 48 h; pay by UPI QR or at the desk; free events confirm instantly) and **door sales**.
-- **QR tickets** in _My tickets_; door **check-in** with a continuous scanner — each ticket admits once, and a second
+- **QR tickets**; door **check-in** by name/order search or a continuous camera scanner — each ticket admits once, and a second
   scan shows "already checked in at 19:42 via …".
 - Attendance, no-shows, revenue and refunds per event; cancelling an event voids unpaid orders and notifies holders.
 - **Event Command Center**: tickets sold, people inside, revenue, arrivals per 10 minutes, latest check-ins and
@@ -282,14 +289,14 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable AI features; without it they fall ba
                               │
    ┌──────────── OPERATE ──────────────────────────────────────┐
    │ Members · Events · Tickets · Merch · Volunteers           │
-   │ Fundraisers · Finance · Security cameras                  │
+   │ Fundraisers · Finance                                     │
    └──────────────────────────┬────────────────────────────────┘
                               │  organization data (Postgres)
    ┌──────────── UNDERSTAND ──┴────────────────────────────────┐
    │ Analytics · Insights + Pulse · Ask (copilot) · Reports    │
    └──────────────────────────┬────────────────────────────────┘
    ┌──────────── ANTICIPATE ──┴────────────────────────────────┐
-   │ What-if · Calendar + reminders · Meetings · Memory        │
+   │ Calendar + reminders · Minutes of meeting · Memory        │
    └──────────────────────────┬────────────────────────────────┘
                               ▼
           AI PROPOSES → HUMAN REVIEWS → CONFIRMS → ACTION
@@ -298,14 +305,14 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable AI features; without it they fall ba
 ```
 src/
   app/(app)/           one folder per module (dashboard, members, events, merch, finance, insights,
-                       copilot, analytics, reports, calendar, meetings, memory, simulate, security, …)
+                       copilot, analytics, reports, calendar, meetings, memory, …)
   app/api/             REST endpoints (exports, uploads, live event stream, report download)
   lib/
     rbac/              permission catalog · role presets · resolve · guards · sync
     action.ts          guardedAction(): auth → permission → Zod validation → handler
     audit.ts           transactional audit writer (who, what, before/after, IP, device)
     ai/claude.ts       the single door to Claude — every caller has an offline fallback
-    analytics/ insights/ copilot/ reports/ calendar/ meetings/ memory/ simulate/ cctv/
+    analytics/ insights/ copilot/ reports/ calendar/ meetings/ memory/
                        pure rules (unit-tested) + server loaders per feature
 prisma/
   schema.prisma        data model · migrations/ one per phase · seed/ one module per phase

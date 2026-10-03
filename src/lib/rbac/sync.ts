@@ -17,6 +17,8 @@ export async function syncPermissionCatalog(db: Client) {
     };
     await db.permission.upsert({ where: { key: p.key }, create: { key: p.key, ...data }, update: data });
   }
+  // Permissions removed from the code are removed here too (role/user links cascade).
+  await db.permission.deleteMany({ where: { key: { notIn: ALL_PERMISSIONS.map((p) => p.key) } } });
 }
 
 /**

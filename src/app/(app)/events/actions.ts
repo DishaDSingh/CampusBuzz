@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit, diff } from "@/lib/audit";
 import { fail, guardedAction, ok, type ActionResult } from "@/lib/action";
@@ -513,7 +514,7 @@ export const checkInTicket = guardedAction({ permission: "tickets.checkin", sche
 });
 
 export const reportIncident = guardedAction(
-  { permission: ["events.edit", "tickets.checkin", "cctv.view"], schema: incidentSchema },
+  { permission: ["events.edit", "tickets.checkin"], schema: incidentSchema },
   async (input, actor) => {
     const e = await db.event.findUnique({ where: { id: input.eventId }, select: { title: true } });
     if (!e) return fail("Event not found.");
@@ -536,7 +537,7 @@ export const reportIncident = guardedAction(
 );
 
 export const resolveIncident = guardedAction(
-  { permission: ["events.edit", "cctv.view"], schema: resolveIncidentSchema },
+  { permission: ["events.edit", "tickets.checkin"], schema: resolveIncidentSchema },
   async ({ incidentId, resolution }, actor) => {
     const i = await db.eventIncident.findUnique({ where: { id: incidentId }, select: { eventId: true, title: true, resolvedAt: true } });
     if (!i) return fail("Incident not found.");
@@ -553,5 +554,48 @@ export const resolveIncident = guardedAction(
     });
     refresh(i.eventId);
     return ok(undefined, "Marked resolved");
+  },
+);
+
+// ─── Door: find a ticket without a camera ────────────────────────────────────
+
+const ticketSearchSchema = z.object({
+  eventId: z.string().min(1).max(40),
+  query: z.string().trim().min(2, "Type at least 2 letters").max(80),
+});
+
+/** Laptop-friendly door: find tickets for this event by holder or buyer name, or order number. */
+export const searchEventTickets = guardedAction(
+  { permission: "tickets.checkin", schema: ticketSearchSchema },
+  async ({ eventId, query }) => {
+    const q = { contains: query, mode: "insensitive" as const };
+    const tickets = await db.ticket.findMany({
+      where: {
+        eventId,
+        status: { in: ["VALID", "RESERVED"] },
+        OR: [{ holderName: q }, { order: { buyerName: q } }, { order: { orderNumber: q } }, { code: { startsWith: query } }],
+      },
+      orderBy: { holderName: "asc" },
+      take: 12,
+      select: {
+        code: true,
+        holderName: true,
+        status: true,
+        checkedInAt: true,
+        ticketType: { select: { name: true } },
+        order: { select: { orderNumber: true, buyerName: true } },
+      },
+    });
+    return ok(
+      tickets.map((t) => ({
+        code: t.code,
+        holderName: t.holderName,
+        buyerName: t.order.buyerName,
+        orderNumber: t.order.orderNumber,
+        type: t.ticketType.name,
+        status: t.status,
+        checkedInAt: t.checkedInAt?.toISOString() ?? null,
+      })),
+    );
   },
 );
