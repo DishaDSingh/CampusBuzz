@@ -1,0 +1,1075 @@
+// CampusBuzz data model.
+// Phase 1–2: organization, people, departments, committees, RBAC, audit.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Organization ────────────────────────────────────────────────────────────
+// One installation = one student organization. Created by the setup wizard.
+
+model Organization {
+  id                    String   @id @default(cuid())
+  name                  String
+  shortName             String
+  description           String?
+  email                 String?
+  phone                 String?
+  website               String?
+  address               String?
+  institution           String?
+  /// Month (1-12) the academic year starts; drives terms and reports.
+  academicYearStart     Int      @default(7)
+  /// Lets students sign themselves up at /join (membership stays pending until dues are confirmed).
+  allowSelfRegistration Boolean  @default(true)
+  /// UPI ID members pay dues to; shown as a scannable UPI QR on renewal.
+  upiId                 String?
+  currency              String   @default("INR")
+  timezone              String   @default("Asia/Kolkata")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ─── People ──────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id             String     @id @default(cuid())
+  email          String     @unique
+  name           String
+  phone          String?
+  /// College roll / enrollment number.
+  studentId      String?    @unique
+  passwordHash   String
+  status         UserStatus @default(ACTIVE)
+  /// Highest authority. Bypasses permission checks; at least one must always exist.
+  isMasterAdmin  Boolean    @default(false)
+  /// Bumped on suspend / password change to invalidate existing sessions.
+  sessionVersion Int        @default(0)
+  departmentId   String?
+  /// Course / programme, e.g. "B.Tech Computer Engineering".
+  program        String?
+  yearOfStudy    Int?
+  /// Assigned on first activated membership, e.g. "HSA-00042".
+  memberNumber   String?    @unique
+  /// Random secret encoded in the pass QR. Rotating it invalidates old screenshots.
+  passToken      String?    @unique
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  department          Department?        @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  headOfDepartments   Department[]       @relation("DepartmentHead")
+  chairOfCommittees   Committee[]        @relation("CommitteeChair")
+  committees          CommitteeMember[]
+  roles               UserRole[]         @relation("UserRoles")
+  rolesAssigned       UserRole[]         @relation("RoleAssigner")
+  permissionOverrides UserPermission[]   @relation("UserOverrides")
+  overridesGranted    UserPermission[]   @relation("OverrideGranter")
+  auditLogs           AuditLog[]
+  memberships         Membership[]       @relation("MemberMemberships")
+  paymentsMade        Payment[]          @relation("PaymentPayer")
+  paymentsReceived    Payment[]          @relation("PaymentReceiver")
+  verificationsOfMe   PassVerification[] @relation("VerifiedMember")
+  verificationsDone   PassVerification[] @relation("Verifier")
+  notifications       Notification[]
+  eventsOrganized     Event[]            @relation("EventOrganizer")
+  eventsCreated       Event[]            @relation("EventCreator")
+  ticketOrders        TicketOrder[]      @relation("TicketBuyer")
+  ticketsCheckedIn    Ticket[]           @relation("TicketCheckedInBy")
+  incidentsReported   EventIncident[]    @relation("IncidentReporter")
+  merchOrders         MerchOrder[]       @relation("MerchBuyer")
+  merchFulfilled      MerchOrder[]       @relation("MerchFulfiller")
+  stockMovements      StockMovement[]
+  designsCreated      MerchDesign[]      @relation("DesignCreator")
+  designsReviewed     MerchDesign[]      @relation("DesignReviewer")
+  uploads             Upload[]
+  volunteerProfile    VolunteerProfile?
+  expensesSubmitted   Expense[]          @relation("ExpenseSubmitter")
+  expensesReviewed    Expense[]          @relation("ExpenseReviewer")
+  reportsCreated      Report[]           @relation("ReportCreator")
+  meetingsCreated     Meeting[]          @relation("MeetingCreator")
+  calendarEntries     CalendarEntry[]    @relation("CalendarEntryCreator")
+  memoriesCreated     MemoryItem[]       @relation("MemoryCreator")
+  announcements       Announcement[]     @relation("AnnouncementAuthor")
+  fundraisersLed      Fundraiser[]       @relation("FundraiserLead")
+  tasksAssigned       Task[]             @relation("TaskAssignee")
+  tasksCreated        Task[]             @relation("TaskCreator")
+
+  @@index([status])
+  @@index([departmentId])
+}
+
+/// Functional area of the organization (Finance, Events, Merchandise…).
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  headId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  head       User?       @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  members    User[]      @relation("DepartmentMembers")
+  committees Committee[]
+}
+
+/// Term-bound working group (e.g. Spring Gala Committee 2026).
+model Committee {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  description  String?
+  departmentId String?
+  chairId      String?
+  termStart    DateTime
+  termEnd      DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  department  Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  chair       User?             @relation("CommitteeChair", fields: [chairId], references: [id], onDelete: SetNull)
+  members     CommitteeMember[]
+  events      Event[]
+  fundraisers Fundraiser[]
+  meetings    Meeting[]
+}
+
+model CommitteeMember {
+  committeeId String
+  userId      String
+  position    String   @default("Member")
+  joinedAt    DateTime @default(now())
+
+  committee Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([committeeId, userId])
+  @@index([userId])
+}
+
+// ─── Access control ──────────────────────────────────────────────────────────
+// Effective permissions = union(role permissions) + user GRANTs − user DENYs.
+// Master admins bypass checks. Nobody else sees everything by default.
+
+/// Catalog row, synced from src/lib/rbac/catalog.ts so FKs stay valid.
+model Permission {
+  key         String  @id // e.g. "finance.approve_expense"
+  module      String
+  action      String
+  label       String
+  description String
+  isSensitive Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  roles     RolePermission[]
+  overrides UserPermission[]
+
+  @@index([module])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  /// Stable identifier used by presets; system roles keep theirs.
+  key         String   @unique
+  name        String   @unique
+  description String?
+  color       String   @default("slate")
+  /// System roles can be re-permissioned but not renamed or deleted.
+  isSystem    Boolean  @default(false)
+  /// Lower = more senior. Used for ordering only, never for authorization.
+  rank        Int      @default(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model RolePermission {
+  roleId        String
+  permissionKey String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+}
+
+model UserRole {
+  userId       String
+  roleId       String
+  assignedById String?
+  assignedAt   DateTime @default(now())
+
+  user       User  @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  role       Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("RoleAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+enum PermissionEffect {
+  GRANT
+  DENY
+}
+
+/// Per-user exception on top of roles ("Treasurer, but no export").
+model UserPermission {
+  userId        String
+  permissionKey String
+  effect        PermissionEffect
+  reason        String?
+  grantedById   String?
+  createdAt     DateTime         @default(now())
+
+  user       User       @relation("UserOverrides", fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+  grantedBy  User?      @relation("OverrideGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, permissionKey])
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+// Append-only. Application code never updates or deletes rows here.
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  /// Snapshot so the log stays readable if the user is later removed.
+  actorName  String
+  action     String // e.g. "role.permissions.update"
+  entityType String // e.g. "Role"
+  entityId   String?
+  summary    String
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action])
+}
+
+// ─── Membership (Phase 3) ────────────────────────────────────────────────────
+
+model MembershipPlan {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String   @unique
+  description    String?
+  durationMonths Int
+  /// Money is always stored in paise to avoid floating-point errors.
+  pricePaise     Int
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  benefits    PlanBenefit[]
+  memberships Membership[]
+}
+
+model MembershipBenefit {
+  id          String   @id @default(cuid())
+  title       String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  plans PlanBenefit[]
+}
+
+model PlanBenefit {
+  planId    String
+  benefitId String
+
+  plan    MembershipPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  benefit MembershipBenefit @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@id([planId, benefitId])
+}
+
+/// Stored states only. "Expired" and "expiring soon" are derived from endDate,
+/// so no background job is needed to keep statuses correct.
+enum MembershipStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  CANCELLED
+}
+
+/// One term of membership. Renewals add a new row, so history is never lost.
+model Membership {
+  id               String           @id @default(cuid())
+  userId           String
+  planId           String
+  status           MembershipStatus @default(PENDING_PAYMENT)
+  /// Set when the term is activated (dues confirmed).
+  startDate        DateTime?
+  endDate          DateTime?
+  /// Price at the time of joining — plan prices can change later.
+  pricePaise       Int
+  /// UPI / bank reference the member submitted while waiting for confirmation.
+  claimedReference String?
+  isRenewal        Boolean          @default(false)
+  cancelledReason  String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  user     User           @relation("MemberMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  plan     MembershipPlan @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([userId])
+  @@index([status, endDate])
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum PaymentPurpose {
+  MEMBERSHIP
+  TICKET
+  MERCH
+  DONATION
+  OTHER
+}
+
+enum PaymentStatus {
+  PAID
+  REFUNDED
+}
+
+/// Money received. Starts with membership dues; tickets, merch and donations
+/// join in later phases and the finance module reads from here.
+model Payment {
+  id            String         @id @default(cuid())
+  receiptNumber String         @unique
+  purpose       PaymentPurpose
+  payerId       String?
+  membershipId  String?
+  ticketOrderId String?        @unique
+  merchOrderId  String?        @unique
+  fundraiserId  String?
+  amountPaise   Int
+  method        PaymentMethod
+  reference     String?
+  status        PaymentStatus  @default(PAID)
+  receivedById  String?
+  paidAt        DateTime       @default(now())
+  notes         String?
+  createdAt     DateTime       @default(now())
+
+  payer       User?        @relation("PaymentPayer", fields: [payerId], references: [id], onDelete: SetNull)
+  receivedBy  User?        @relation("PaymentReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
+  membership  Membership?  @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  ticketOrder TicketOrder? @relation(fields: [ticketOrderId], references: [id], onDelete: SetNull)
+  merchOrder  MerchOrder?  @relation(fields: [merchOrderId], references: [id], onDelete: SetNull)
+  fundraiser  Fundraiser?  @relation(fields: [fundraiserId], references: [id], onDelete: SetNull)
+
+  @@index([purpose, paidAt])
+  @@index([payerId])
+}
+
+enum VerificationResult {
+  VALID
+  EXPIRED
+  PENDING
+  CANCELLED
+  NOT_MEMBER
+  INVALID_PASS
+}
+
+/// Every pass check at the door. Feeds event check-in and analytics later.
+model PassVerification {
+  id           String             @id @default(cuid())
+  memberId     String?
+  verifiedById String
+  result       VerificationResult
+  method       String // "scan" | "manual"
+  createdAt    DateTime           @default(now())
+
+  member     User? @relation("VerifiedMember", fields: [memberId], references: [id], onDelete: SetNull)
+  verifiedBy User  @relation("Verifier", fields: [verifiedById], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([memberId])
+}
+
+/// In-app notifications (renewal reminders now; tasks, events, alerts later).
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // e.g. "membership.expiring"
+  title     String
+  body      String
+  link      String?
+  /// Makes automated reminders idempotent: the same reminder is never sent twice.
+  dedupeKey String?   @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+// ─── Events & tickets (Phase 4) ──────────────────────────────────────────────
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+model Event {
+  id              String      @id @default(cuid())
+  title           String
+  description     String?
+  category        String
+  venue           String
+  startsAt        DateTime
+  endsAt          DateTime
+  capacity        Int
+  /// Tickets sold or held by unpaid orders. Updated atomically to prevent overselling.
+  allocated       Int         @default(0)
+  status          EventStatus @default(DRAFT)
+  salesOpenAt     DateTime?
+  salesCloseAt    DateTime?
+  organizerId     String?
+  committeeId     String?
+  createdById     String?
+  cancelledReason String?
+  publishedAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  organizer   User?           @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: SetNull)
+  createdBy   User?           @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  committee   Committee?      @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  ticketTypes TicketType[]
+  orders      TicketOrder[]
+  tickets     Ticket[]
+  incidents   EventIncident[]
+  expenses    Expense[]
+  memories    MemoryItem[]
+  cameras     Camera[]
+  fundraisers Fundraiser[]
+  tasks       Task[]
+
+  @@index([status, startsAt])
+}
+
+model TicketType {
+  id               String   @id @default(cuid())
+  eventId          String
+  name             String
+  description      String?
+  /// Price for one ticket bought by an active member for themselves.
+  memberPricePaise Int
+  publicPricePaise Int
+  quantity         Int
+  allocated        Int      @default(0)
+  maxPerOrder      Int      @default(4)
+  membersOnly      Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@unique([eventId, name])
+}
+
+enum TicketOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum SalesChannel {
+  ONLINE
+  DOOR
+}
+
+model TicketOrder {
+  id               String            @id @default(cuid())
+  orderNumber      String            @unique
+  eventId          String
+  buyerId          String?
+  buyerName        String
+  buyerEmail       String?
+  buyerPhone       String?
+  status           TicketOrderStatus @default(PENDING_PAYMENT)
+  channel          SalesChannel      @default(ONLINE)
+  totalPaise       Int
+  claimedReference String?
+  /// Unpaid online orders release their seats after this.
+  holdUntil        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  buyer   User?    @relation("TicketBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  tickets Ticket[]
+  payment Payment?
+
+  @@index([eventId, status])
+  @@index([buyerId])
+}
+
+enum TicketStatus {
+  RESERVED
+  VALID
+  CANCELLED
+  REFUNDED
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  /// Random secret encoded in the ticket QR.
+  code          String       @unique
+  orderId       String
+  eventId       String
+  ticketTypeId  String
+  holderName    String
+  pricePaise    Int
+  isMemberPrice Boolean      @default(false)
+  status        TicketStatus @default(RESERVED)
+  checkedInAt   DateTime?
+  checkedInById String?
+  createdAt     DateTime     @default(now())
+
+  order       TicketOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketType  TicketType  @relation(fields: [ticketTypeId], references: [id])
+  checkedInBy User?       @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status])
+  @@index([eventId, checkedInAt])
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model EventIncident {
+  id           String           @id @default(cuid())
+  eventId      String
+  title        String
+  details      String?
+  severity     IncidentSeverity @default(LOW)
+  location     String?
+  reportedById String?
+  resolvedAt   DateTime?
+  resolution   String?
+  createdAt    DateTime         @default(now())
+
+  event      Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reportedBy User? @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+
+  @@index([eventId, resolvedAt])
+}
+
+// ─── Uploads (shared) ────────────────────────────────────────────────────────
+
+/// Files stored on the local disk (storage/uploads), served through a permission-checked route.
+model Upload {
+  id           String   @id @default(cuid())
+  purpose      String // "merch_logo" | "receipt"
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  path         String
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  uploadedBy User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  designs    MerchDesign[]
+  expenses   Expense[]
+}
+
+// ─── Merchandise (Phase 5) ───────────────────────────────────────────────────
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Product {
+  id               String        @id @default(cuid())
+  name             String        @unique
+  category         String // Hoodie, T-shirt, Cap, Tote, Mug…
+  description      String?
+  publicPricePaise Int
+  /// Members' price (the "15% off merchandise" benefit), editable per product.
+  memberPricePaise Int
+  unitCostPaise    Int           @default(0)
+  status           ProductStatus @default(DRAFT)
+  designId         String?       @unique
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  variants ProductVariant[]
+  design   MerchDesign?     @relation(fields: [designId], references: [id], onDelete: SetNull)
+}
+
+model ProductVariant {
+  id           String   @id @default(cuid())
+  productId    String
+  sku          String   @unique
+  size         String
+  color        String
+  colorHex     String   @default("#111827")
+  stock        Int      @default(0)
+  reorderLevel Int      @default(5)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  items     MerchOrderItem[]
+  movements StockMovement[]
+
+  @@unique([productId, size, color])
+}
+
+enum MerchOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+model MerchOrder {
+  id               String           @id @default(cuid())
+  orderNumber      String           @unique
+  buyerId          String?
+  buyerName        String
+  buyerPhone       String?
+  status           MerchOrderStatus @default(PENDING_PAYMENT)
+  channel          SalesChannel     @default(ONLINE)
+  totalPaise       Int
+  claimedReference String?
+  holdUntil        DateTime?
+  fulfilledAt      DateTime?
+  fulfilledById    String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  buyer       User?            @relation("MerchBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  fulfilledBy User?            @relation("MerchFulfiller", fields: [fulfilledById], references: [id], onDelete: SetNull)
+  items       MerchOrderItem[]
+  payment     Payment?
+
+  @@index([status, createdAt])
+  @@index([buyerId])
+}
+
+model MerchOrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  variantId      String
+  quantity       Int
+  unitPricePaise Int
+  isMemberPrice  Boolean @default(false)
+
+  order   MerchOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([variantId])
+}
+
+enum StockReason {
+  RESTOCK
+  SALE
+  RELEASE
+  ADJUSTMENT
+  DAMAGED
+}
+
+/// Every stock change, so inventory can always be explained ("30 → 29, sale MRC-2026-00042").
+model StockMovement {
+  id         String      @id @default(cuid())
+  variantId  String
+  change     Int
+  stockAfter Int
+  reason     StockReason
+  note       String?
+  orderId    String?
+  actorId    String?
+  createdAt  DateTime    @default(now())
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  actor   User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([variantId, createdAt])
+}
+
+enum DesignStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+/// Merch Studio concept: a visual preview for deciding next year's merch.
+/// A preview, not a manufacturing spec.
+model MerchDesign {
+  id                 String       @id @default(cuid())
+  name               String
+  productType        String // hoodie | tshirt | cap | tote | mug
+  baseColor          String
+  inkColor           String       @default("#ffffff")
+  frontText          String?
+  backText           String?
+  /// Print artwork as sanitized SVG markup (AI-generated or from the offline template designer).
+  artworkSvg         String?
+  artworkSource      String? // "ai" | "template" | "upload"
+  aiPrompt           String?
+  logoUploadId       String?
+  sizes              String[]
+  estimatedCostPaise Int          @default(0)
+  sellingPricePaise  Int          @default(0)
+  status             DesignStatus @default(DRAFT)
+  reviewNote         String?
+  createdById        String?
+  reviewedById       String?
+  reviewedAt         DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  logo       Upload?  @relation(fields: [logoUploadId], references: [id], onDelete: SetNull)
+  createdBy  User?    @relation("DesignCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedBy User?    @relation("DesignReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  product    Product?
+}
+
+// ─── Volunteers & fundraisers (Phase 6) ──────────────────────────────────────
+
+/// What a volunteer can do and when — the inputs to smart matching.
+model VolunteerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  skills          String[]
+  interests       String[]
+  /// Slots like "WEEKDAY_MORNING", "WEEKEND_EVENING" (see src/lib/volunteers/rules.ts).
+  availability    String[]
+  maxHoursPerWeek Int      @default(6)
+  bio             String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum FundraiserStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Fundraiser {
+  id          String           @id @default(cuid())
+  title       String           @unique
+  description String?
+  cause       String
+  goalPaise   Int
+  startsAt    DateTime
+  endsAt      DateTime
+  status      FundraiserStatus @default(PLANNING)
+  leadId      String?
+  committeeId String?
+  eventId     String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  lead      User?      @relation("FundraiserLead", fields: [leadId], references: [id], onDelete: SetNull)
+  committee Committee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  tasks     Task[]
+  payments  Payment[]
+  expenses  Expense[]
+
+  @@index([status, endsAt])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Work item for a fundraiser or an event. Volunteers update their own tasks.
+model Task {
+  id             String       @id @default(cuid())
+  title          String
+  description    String?
+  fundraiserId   String?
+  meetingId      String?
+  eventId        String?
+  assigneeId     String?
+  createdById    String?
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  requiredSkills String[]
+  dueAt          DateTime?
+  estimatedHours Float?
+  loggedHours    Float        @default(0)
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  fundraiser Fundraiser? @relation(fields: [fundraiserId], references: [id], onDelete: Cascade)
+  event      Event?      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  meeting    Meeting?    @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  assignee   User?       @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy  User?       @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([assigneeId, status])
+  @@index([fundraiserId, status])
+  @@index([eventId, status])
+}
+
+// ─── Finance (Phases 7–8) ────────────────────────────────────────────────────
+// Money in = Payment rows (dues, tickets, merch, donations).
+// Money out = approved Expense rows.
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+model Expense {
+  id                 String        @id @default(cuid())
+  description        String
+  category           String
+  vendor             String?
+  amountPaise        Int
+  taxPaise           Int           @default(0)
+  spentAt            DateTime
+  status             ExpenseStatus @default(PENDING)
+  /// The submitter paid out of pocket and should be paid back once approved.
+  needsReimbursement Boolean       @default(false)
+  eventId            String?
+  fundraiserId       String?
+  receiptUploadId    String?
+  /// "manual" or "scan" — whether the receipt scanner filled the form.
+  source             String        @default("manual")
+  submittedById      String?
+  reviewedById       String?
+  reviewedAt         DateTime?
+  reviewNote         String?
+  reimbursedAt       DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  event       Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  fundraiser  Fundraiser? @relation(fields: [fundraiserId], references: [id], onDelete: SetNull)
+  receipt     Upload?     @relation(fields: [receiptUploadId], references: [id], onDelete: SetNull)
+  submittedBy User?       @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy  User?       @relation("ExpenseReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, spentAt])
+}
+
+// ─── Analytics (Phase 9) ─────────────────────────────────────────────────────
+
+/// A simple monthly spending limit per expense category.
+model Budget {
+  id           String   @id @default(cuid())
+  category     String   @unique
+  monthlyPaise Int
+  updatedById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─── Reports & summaries (Phases 12, 13, 20) ─────────────────────────────────
+
+/// A generated, human-edited report. Sections are [{ heading, body }].
+model Report {
+  id          String    @id @default(cuid())
+  type        String
+  title       String
+  subjectId   String?
+  periodFrom  DateTime?
+  periodTo    DateTime?
+  sections    Json
+  status      String    @default("DRAFT")
+  source      String    @default("template")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy User? @relation("ReportCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+}
+
+// ─── Calendar, meetings & organization memory (Phases 14, 16, 19) ────────────
+
+/// A meeting's notes/transcript and what was extracted from it.
+/// `extracted` = { summary, decisions[], actions[{ task, owner, ownerId, due }], questions[] }.
+model Meeting {
+  id          String    @id @default(cuid())
+  title       String
+  heldAt      DateTime
+  committeeId String?
+  notes       String
+  extracted   Json?
+  /// DRAFT until a person reviews the extraction and confirms it.
+  status      String    @default("DRAFT")
+  source      String?
+  confirmedAt DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  committee Committee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation("MeetingCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  tasks     Task[]
+
+  @@index([heldAt])
+}
+
+/// Deadlines, reminders and other dated items that aren't events or meetings.
+model CalendarEntry {
+  id          String   @id @default(cuid())
+  title       String
+  kind        String   @default("DEADLINE")
+  startsAt    DateTime
+  notes       String?
+  remind      Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  createdBy User? @relation("CalendarEntryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([startsAt])
+}
+
+/// Organization memory: lessons, decisions, vendors, sponsors, documents and notes.
+model MemoryItem {
+  id          String    @id @default(cuid())
+  kind        String
+  title       String
+  body        String
+  tags        String[]
+  happenedAt  DateTime?
+  eventId     String?
+  meetingId   String?
+  url         String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy User?  @relation("MemoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([kind, happenedAt])
+}
+
+// ─── CCTV / event security (Phase 15) ────────────────────────────────────────
+// No facial recognition, no person tracking. Cameras are only listed, watched
+// and annotated; every view is logged.
+
+model Camera {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  /// Live feed URL (MJPEG/JPEG snapshot, MP4 or HLS) — optional; demo cameras have none.
+  streamUrl     String?
+  /// Recorded footage URL, where the recorder supports it.
+  playbackUrl   String?
+  eventId       String?
+  /// Footage older than this should be deleted by the recorder; shown as policy.
+  retentionDays Int      @default(30)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  event    Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  accesses CameraAccess[]
+
+  @@index([eventId])
+}
+
+model CameraAccess {
+  id        String   @id @default(cuid())
+  cameraId  String
+  userId    String?
+  userName  String
+  kind      String // LIVE | PLAYBACK
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  camera Camera @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+
+  @@index([cameraId, createdAt])
+}
+
+// ─── Announcements (Phases 22, 24) ───────────────────────────────────────────
+
+/// Drafted by a person (optionally with AI help); sent only when someone with
+/// announcements.publish confirms. Publishing notifies the audience in-app.
+model Announcement {
+  id            String    @id @default(cuid())
+  title         String
+  body          String
+  /// ALL | MEMBERS | VOLUNTEERS
+  audience      String    @default("MEMBERS")
+  status        String    @default("DRAFT")
+  source        String    @default("manual")
+  recipients    Int       @default(0)
+  createdById   String?
+  publishedById String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy User? @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+}
