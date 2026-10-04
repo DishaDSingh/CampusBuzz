@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { byHierarchy, effectiveRank, tierFor, topRankOf } from "@/lib/rbac/hierarchy";
 import { parseMerchPrompt } from "@/lib/merch/prompt";
 import { summarizeReport } from "@/lib/reports/types";
+import { routeOffline } from "@/lib/copilot/router";
 import { AUDIENCE_KEYS, suggestedTemplate, templates } from "@/lib/announcement-templates";
 
 describe("hierarchy", () => {
@@ -65,5 +66,21 @@ describe("announcement templates", () => {
   it("fee reminders go to members whose membership ends today", () => {
     const t = templates("Horizon").find((x) => x.key === suggestedTemplate.TODAY)!;
     expect(t.body.toLowerCase()).toContain("fee");
+  });
+});
+
+describe("assistant routing (offline)", () => {
+  it.each([
+    ["Is my membership active?", "my_membership"],
+    ["When are my fees due?", "my_membership"],
+    ["How do I renew my membership?", "my_membership"],
+    ["Which tickets do I have?", "my_tickets"],
+    ["What's the status of my merch orders?", "my_orders"],
+    ["What can I do here?", "my_access"],
+    ["Where do I find the calendar?", "navigate"],
+    ["What needs my attention today?", "attention"],
+    ["How much came in this month?", "finance_summary"],
+  ])("%s → %s", (q, intent) => {
+    expect(routeOffline(q).intent).toBe(intent);
   });
 });

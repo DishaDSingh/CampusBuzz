@@ -9,6 +9,7 @@ import { raisedByFundraiser } from "@/lib/fundraisers";
 import { SPENT_STATUSES } from "@/lib/finance/rules";
 import { loadInsights } from "@/lib/insights/engine";
 import { searchMemory } from "@/lib/memory/search";
+import { NAV, type NavItem } from "@/components/shell/nav";
 import { INTENT_HELP, INTENTS, PERIOD_LABEL, matchScore, periodStart, type Intent, type Route } from "./router";
 
 /**
@@ -37,8 +38,26 @@ const NEEDS: Record<Intent, PermissionKey[] | null> = {
   finance_summary: ["finance.view"],
   upcoming_events: null,
   my_tasks: null,
+  my_membership: null,
+  my_tickets: null,
+  my_orders: null,
+  my_access: null,
+  navigate: null,
   memory: ["reports.view"],
   help: null,
+};
+
+/** What a refused question is about, and who usually looks after it. */
+const AREA: Partial<Record<Intent, [area: string, owner: string]>> = {
+  active_members: ["membership records", "Secretary"],
+  expiring_memberships: ["membership records", "Secretary"],
+  pending_reimbursements: ["finance", "Treasurer"],
+  event_money: ["event finances", "Treasurer"],
+  finance_summary: ["finance", "Treasurer"],
+  top_attendance: ["event attendance", "Event Head"],
+  stock_left: ["merch inventory", "Merchandise Manager"],
+  fundraiser_progress: ["fundraiser", "Volunteer Head"],
+  memory: ["the organization's internal records", "council"],
 };
 
 export function allowed(user: CurrentUser, intent: Intent) {
@@ -46,15 +65,155 @@ export function allowed(user: CurrentUser, intent: Intent) {
   return !need || need.some((p) => user.permissions.has(p));
 }
 
+const roleList = (user: CurrentUser) => (user.isMasterAdmin ? "Master Admin" : user.roles.map((r) => r.name).join(", ") || "member");
+
+/** Pages the person can open that match the words in their question. */
+function findPages(user: CurrentUser, words: string) {
+  const terms = words
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9-]/g, "").replace(/s$/, ""))
+    .filter((w) => w.length > 2 && !["where", "find", "page", "can", "how", "see", "open", "take", "add", "new"].includes(w));
+  const score = (i: NavItem) => {
+    const hay = `${i.label} ${i.keywords ?? ""} ${i.href.replaceAll("/", " ")}`.toLowerCase();
+    return terms.filter((t) => hay.includes(t)).length;
+  };
+  const all = NAV.flatMap((g) => g.items);
+  const canOpen = (i: NavItem) => !i.anyOf || i.anyOf.some((p) => user.permissions.has(p));
+  const hits = all
+    .map((i) => ({ i, s: score(i) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s);
+  return { open: hits.filter((x) => canOpen(x.i)).map((x) => x.i), locked: hits.filter((x) => !canOpen(x.i)).map((x) => x.i) };
+}
+
 export async function answer(route: Route, user: CurrentUser): Promise<Answer> {
   if (!allowed(user, route.intent)) {
+    const [area, owner] = AREA[route.intent] ?? ["that", "council"];
     return {
-      text: "You don't have access to that information. Ask someone with the right role, or check your access on your profile page.",
-      sources: [{ label: "My access", href: "/profile" }],
+      text: `Sorry, I can't share ${area} information. Your role (${roleList(user)}) doesn't include access to it. If you need it, please ask the ${owner}.`,
+      sources: [{ label: "What I can access", href: "/profile" }],
     };
   }
   const now = new Date();
   switch (route.intent) {
+    case "my_membership": {
+      const [me, terms] = await Promise.all([
+        db.user.findUnique({ where: { id: user.id }, select: { memberNumber: true } }),
+        db.membership.findMany({
+          where: { userId: user.id, status: { in: ["ACTIVE", "PENDING_PAYMENT"] } },
+          orderBy: { createdAt: "desc" },
+          select: { status: true, startDate: true, endDate: true, pricePaise: true, plan: { select: { name: true } } },
+        }),
+      ]);
+      const current = terms.find((t) => t.status === "ACTIVE" && t.startDate && t.endDate && t.startDate <= now && t.endDate >= now);
+      const next = terms.find((t) => t.status === "ACTIVE" && t.startDate && t.startDate > now);
+      const pending = terms.find((t) => t.status === "PENDING_PAYMENT");
+      const days = current?.endDate ? Math.ceil((current.endDate.getTime() - now.getTime()) / DAY) : null;
+      const text = current
+        ? `Your ${current.plan.name} membership is active until ${fmtDate(current.endDate)}` +
+          (next
+            ? ", and your renewal is already paid."
+            : days !== null && days <= 30
+              ? ` — that's ${plural(days, "day")} away, so your renewal fee is due soon.`
+              : ".")
+        : pending
+          ? `Your ${pending.plan.name} membership is waiting for payment: ${formatINR(pending.pricePaise)} is due. Once the treasurer confirms it, your pass activates.`
+          : "You don't have an active membership right now. You can join or renew from My membership.";
+      return {
+        text,
+        table: me?.memberNumber ? { columns: ["", ""], rows: [["Member number", me.memberNumber]] } : undefined,
+        sources: [{ label: "My membership", href: "/me" }],
+      };
+    }
+
+    case "my_tickets": {
+      const tickets = await db.ticket.findMany({
+        where: { order: { buyerId: user.id }, status: { in: ["VALID", "RESERVED"] }, event: { endsAt: { gte: now } } },
+        orderBy: { event: { startsAt: "asc" } },
+        take: 10,
+        select: { holderName: true, status: true, event: { select: { title: true, startsAt: true, venue: true } } },
+      });
+      return {
+        text: tickets.length
+          ? `You have ${plural(tickets.length, "ticket")} for upcoming events.`
+          : "You don't have tickets for any upcoming event.",
+        table: tickets.length
+          ? {
+              columns: ["Event", "When", "Holder", "Status"],
+              rows: tickets.map((t) => [
+                t.event.title,
+                fmtDate(t.event.startsAt),
+                t.holderName,
+                t.status === "VALID" ? "Ready" : "Awaiting payment",
+              ]),
+            }
+          : undefined,
+        sources: [
+          { label: "My tickets", href: "/me/tickets" },
+          { label: "Events", href: "/events" },
+        ],
+      };
+    }
+
+    case "my_orders": {
+      const orders = await db.merchOrder.findMany({
+        where: { buyerId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        select: { orderNumber: true, status: true, totalPaise: true, createdAt: true, _count: { select: { items: true } } },
+      });
+      const STATUS = {
+        PENDING_PAYMENT: "Awaiting payment",
+        PAID: "Paid — ready soon",
+        FULFILLED: "Collected",
+        CANCELLED: "Cancelled",
+        REFUNDED: "Refunded",
+      } as const;
+      return {
+        text: orders.length ? `Your ${plural(orders.length, "merch order")}, newest first:` : "You haven't ordered any merch yet.",
+        table: orders.length
+          ? {
+              columns: ["Order", "Placed", "Total", "Status"],
+              rows: orders.map((o) => [o.orderNumber, fmtDate(o.createdAt), formatINR(o.totalPaise), STATUS[o.status]]),
+            }
+          : undefined,
+        sources: [
+          { label: "My orders", href: "/me/orders" },
+          { label: "Merch store", href: "/merch" },
+        ],
+      };
+    }
+
+    case "my_access": {
+      const areas = NAV.map((g) => ({
+        g: g.label,
+        items: g.items.filter((i) => !i.anyOf || i.anyOf.some((p) => user.permissions.has(p))).map((i) => i.label),
+      })).filter((g) => g.items.length);
+      return {
+        text: user.isMasterAdmin
+          ? `You're signed in as ${user.name}, a Master Admin — you have full access to everything, and I can answer any question about the organization.`
+          : `You're signed in as ${user.name} (${roleList(user)}). You have ${plural(user.permissions.size, "permission")}; I only answer from what those let you see.`,
+        table: { columns: ["Area", "What you can open"], rows: areas.map((a) => [a.g, a.items.join(", ")]) },
+        sources: [{ label: "My profile & access", href: "/profile" }],
+      };
+    }
+
+    case "navigate": {
+      const { open, locked } = findPages(user, route.subject ?? "");
+      if (open.length)
+        return {
+          text: open.length === 1 ? `That's on the ${open[0].label} page.` : `These pages should help — the first is the best match:`,
+          sources: open.slice(0, 4).map((i) => ({ label: i.label, href: i.href })),
+        };
+      return {
+        text: locked.length
+          ? `That's on the ${locked[0].label} page, which isn't part of your access (${roleList(user)}).`
+          : "I couldn't find a page for that. Try a word like events, merch, calendar or membership.",
+        sources: [],
+      };
+    }
+
     case "active_members": {
       const [c, byPlan] = await Promise.all([
         membershipCounts(now),
@@ -370,11 +529,15 @@ export async function answer(route: Route, user: CurrentUser): Promise<Answer> {
     }
 
     case "help":
-    default:
+    default: {
+      // Maybe they named a page ("calendar", "volunteering") — point to it.
+      const pages = findPages(user, route.subject ?? "").open;
+      if (pages.length) return answer({ ...route, intent: "navigate" }, user);
       return {
         text: "I answer questions from the organization's own data, and show where each number comes from. Try one of these:",
         table: { columns: ["You can ask"], rows: INTENTS.filter((i) => i !== "help" && allowed(user, i)).map((i) => [INTENT_HELP[i]]) },
         sources: [],
       };
+    }
   }
 }

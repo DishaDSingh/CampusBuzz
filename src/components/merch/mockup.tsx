@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { RotateCwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hasPhotoMockup } from "@/lib/merch/photos";
 import type { ProductTypeKey } from "@/lib/merch/rules";
 
 /**
@@ -275,7 +276,6 @@ const PHOTOS: Record<"hoodie" | "tshirt", { light: { model: Photo; product: Phot
   },
 };
 
-export const hasPhotoMockup = (type: ProductTypeKey) => type === "hoodie" || type === "tshirt";
 
 const isLight = (hex: string) => {
   const n = Number.parseInt(hex.replace("#", ""), 16);

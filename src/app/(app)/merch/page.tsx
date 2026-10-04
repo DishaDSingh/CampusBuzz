@@ -4,7 +4,8 @@ import { ClipboardListIcon, PackageIcon, PaletteIcon, PlusIcon, ShirtIcon } from
 import { db } from "@/lib/db";
 import { can, requireUser } from "@/lib/auth/current-user";
 import { EmptyState, PageHeader } from "@/components/common";
-import { MockupFace, PhotoMockup, hasPhotoMockup } from "@/components/merch/mockup";
+import { MockupFace, PhotoMockup } from "@/components/merch/mockup";
+import { hasPhotoMockup } from "@/lib/merch/photos";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatINR, standing } from "@/lib/membership/rules";

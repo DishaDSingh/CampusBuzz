@@ -7,7 +7,7 @@ explains what's happening and helps plan what's next. Every AI feature proposes;
 | Layer          | What it covers                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------ |
 | **Operate**    | Members & digital pass · Events, tickets & check-in · Merch · Volunteers · Fundraisers · Finance |
-| **Understand** | Insights & organization pulse · Ask (data copilot) · Analytics · Reports & summaries             |
+| **Understand** | Insights & organization pulse · Buzz assistant (every page) · Analytics · Reports & summaries    |
 | **Anticipate** | Calendar & smart reminders · Minutes of meeting · Organization memory                            |
 
 > All 25 phases are built: foundation and access control (1–2), the core modules (3–8), analytics, insights, copilot,
@@ -22,6 +22,7 @@ explains what's happening and helps plan what's next. Every AI feature proposes;
 - **Merch studio**: describe the merch in one line ("classic navy hoodie for Diwali Gala 2026") and get a professional design on real hoodie/tee photos.
 - **Volunteers** at a glance (free / busy / overloaded), **reports** with an "At a glance" summary, **minutes of meeting**.
 - **Users** and **Roles** grouped by hierarchy — Master Admin, council, heads, committee, volunteers, members — with names.
+- **Buzz assistant**: a chat bubble bottom-right on every page. It answers from live data but only what the person's role allows (a member asking about finance is politely refused; a Master Admin can ask anything), plus personal questions (my membership, tickets, orders, tasks, access) and "where do I…".
 - Removed: the What-if simulator and the CCTV module (privacy).
 
 ---
@@ -293,7 +294,7 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable AI features; without it they fall ba
    └──────────────────────────┬────────────────────────────────┘
                               │  organization data (Postgres)
    ┌──────────── UNDERSTAND ──┴────────────────────────────────┐
-   │ Analytics · Insights + Pulse · Ask (copilot) · Reports    │
+   │ Analytics · Insights + Pulse · Buzz assistant · Reports   │
    └──────────────────────────┬────────────────────────────────┘
    ┌──────────── ANTICIPATE ──┴────────────────────────────────┐
    │ Calendar + reminders · Minutes of meeting · Memory        │

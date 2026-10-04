@@ -48,7 +48,7 @@ describe("copilot routing (offline)", () => {
     ["How many hoodies are left?", "stock_left", "hoodies"],
     ["What needs my attention today?", "attention", null],
     ["How is the winter clothes drive doing?", "fundraiser_progress", "winter clothes drive"],
-    ["What's the weather?", "help", null],
+    ["What's the weather?", "help", "what's weather"],
   ])("%s → %s", (q, intent, subject) => {
     const r = routeOffline(q);
     expect(r.intent).toBe(intent);

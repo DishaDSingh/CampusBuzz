@@ -24,7 +24,6 @@ import {
   NotebookPenIcon,
   BrainIcon,
   FileTextIcon,
-  MessageCircleQuestionIcon,
   type LucideIcon,
   NetworkIcon,
   ShieldCheckIcon,
@@ -132,14 +131,6 @@ export const NAV: NavGroup[] = [
         tone: "amber",
         anyOf: ["analytics.view"],
         keywords: "alerts pulse health warnings",
-      },
-      {
-        href: "/copilot",
-        label: "Ask",
-        icon: MessageCircleQuestionIcon,
-        tone: "violet",
-        anyOf: ["ai.use"],
-        keywords: "chat copilot question assistant ai",
       },
       {
         href: "/analytics",

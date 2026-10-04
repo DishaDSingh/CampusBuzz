@@ -10,9 +10,9 @@ export const metadata: Metadata = { title: "How AI works here" };
 /** Phase 24 — every AI feature, what it may do, and where a person decides. */
 const FEATURES = [
   {
-    name: "Ask (copilot)",
-    href: "/copilot",
-    ai: "Works out which question you asked.",
+    name: "Buzz assistant (bottom-right on every page)",
+    href: "/dashboard",
+    ai: "Works out which question you asked (people with AI access only).",
     human: "Reads the answer and its sources.",
     never: "Never makes up a number — every figure is computed from the database.",
     offline: "Keyword matching.",

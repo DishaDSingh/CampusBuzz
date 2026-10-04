@@ -17,6 +17,11 @@ export const INTENTS = [
   "finance_summary",
   "upcoming_events",
   "my_tasks",
+  "my_membership",
+  "my_tickets",
+  "my_orders",
+  "my_access",
+  "navigate",
   "memory",
   "help",
 ] as const;
@@ -36,12 +41,25 @@ export const INTENT_HELP: Record<Intent, string> = {
   finance_summary: "How much came in / went out this month?",
   upcoming_events: "What events are coming up?",
   my_tasks: "What tasks are assigned to me?",
+  my_membership: "Is my membership active? When are my fees due?",
+  my_tickets: "Which tickets do I have?",
+  my_orders: "What's the status of my merch orders?",
+  my_access: "What can I do here? What's my role?",
+  navigate: "Where do I find <something>? (points to the right page)",
   memory: "What happened during last year's Gala? (searches past events, reports, decisions, lessons)",
   help: "Anything else — shows what I can answer.",
 };
 
 const RULES: [Intent, RegExp][] = [
+  ["my_access", /what can i (do|see|access)|\bmy (roles?|access|permissions?|position)\b|who am i/],
+  [
+    "my_membership",
+    /\bmy (membership|pass|member(ship)? (number|card)|fees?|dues|plan)\b|when does my|(do|should) i (renew|pay)|am i (an? )?(active )?member|renew my/,
+  ],
+  ["my_tickets", /\bmy tickets?\b|tickets? (do|have|did) i\b|(did|have) i (buy|bought|book|booked)/],
+  ["my_orders", /\bmy (merch )?orders?\b|orders? (do|have|did) i\b|\bmy (hoodie|tee|t-?shirt|merch)\b/],
   ["my_tasks", /\bmy (open )?tasks?\b|assigned to me|what (should|do) i (do|work on)/],
+  ["navigate", /^(where|how) (can|do|should) i\b|^how to\b|take me to|\bgo to\b|where (is|are|can i find) /],
   ["attention", /attention|to-?do|priorit|urgent|anything wrong|alerts?\b|today\b.*(need|do)/],
   [
     "memory",
@@ -90,6 +108,8 @@ export function routeOffline(question: string): Route {
   const needsSubject = intent === "event_money" || intent === "stock_left" || intent === "fundraiser_progress";
   // Memory search works best on the whole question ("last year", names, topics).
   const subject = intent === "memory" ? question : needsSubject ? extractSubject(question) : null;
+  // "Where do I…" and unknown questions keep their words so we can point to the right page.
+  if (intent === "navigate" || intent === "help") return { intent, subject: extractSubject(question), period: null };
   return { intent, subject, period: extractPeriod(q) };
 }
 

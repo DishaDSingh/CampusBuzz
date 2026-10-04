@@ -23,7 +23,7 @@ describe("navigation follows the three product layers", () => {
   it("groups modules into Operate, Understand and Anticipate", () => {
     const groups = Object.fromEntries(NAV.map((g) => [g.label, g.items.map((i) => i.href)]));
     expect(Object.keys(groups)).toEqual(["Home", "Operate", "Understand", "Anticipate", "Administration", "You"]);
-    expect(groups.Understand).toEqual(["/insights", "/copilot", "/analytics", "/reports"]);
+    expect(groups.Understand).toEqual(["/insights", "/analytics", "/reports"]);
     expect(groups.Anticipate).toEqual(["/meetings", "/memory"]);
   });
 

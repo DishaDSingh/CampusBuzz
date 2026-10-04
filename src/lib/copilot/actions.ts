@@ -15,21 +15,27 @@ const RouteSchema = z.object({
   subject: z
     .string()
     .nullable()
-    .describe("Event, product or fundraiser name the question is about, if any — words only, e.g. 'Diwali Gala' or 'hoodie'."),
+    .describe(
+      "Event, product or fundraiser name the question is about, or for navigate/help the key words of what they're looking for — words only, e.g. 'Diwali Gala' or 'hoodie'.",
+    ),
   period: z.enum(["today", "week", "month", "year"]).nullable(),
 });
 
-const SYSTEM = `You route questions for a student organisation's data copilot. You never answer the question yourself.
-Pick the single intent that best matches. Use "help" if none fits.
+const SYSTEM = `You route questions for a student organisation's assistant. You never answer the question yourself.
+Pick the single intent that best matches. Questions about the asker's own membership, tickets, orders, tasks or access use the my_* intents.
+Use "navigate" when they ask where or how to do something in the app. Use "help" if none fits.
 Intents:
 ${INTENTS.map((i) => `- ${i}: ${INTENT_HELP[i]}`).join("\n")}`;
 
 /**
- * The model only chooses *which* question was asked. The answer and every
- * number in it are computed from the database, so the copilot can't invent figures.
+ * The assistant every signed-in person sees. The model only chooses *which*
+ * question was asked; answers and numbers are computed from the database and
+ * filtered by the asker's permissions, so a member never sees finance data.
  */
-export const askCopilot = guardedAction({ permission: "ai.use", schema: askSchema }, async ({ question }, actor) => {
-  const ai = await structured({ schema: RouteSchema, system: SYSTEM, content: question, effort: "low", maxTokens: 1000 });
+export const askAssistant = guardedAction({ schema: askSchema }, async ({ question }, actor) => {
+  const ai = actor.permissions.has("ai.use")
+    ? await structured({ schema: RouteSchema, system: SYSTEM, content: question, effort: "low", maxTokens: 1000 })
+    : ({ ok: false } as const);
   const routed: Route = ai.ok ? ai.data : routeOffline(question);
   const route = routed.intent === "memory" ? { ...routed, subject: question } : routed;
   const result = await answer(route, actor);
@@ -38,7 +44,7 @@ export const askCopilot = guardedAction({ permission: "ai.use", schema: askSchem
       actor,
       action: "copilot.ask",
       entityType: "Copilot",
-      summary: `Asked the copilot: "${question.slice(0, 120)}" → ${route.intent}`,
+      summary: `Asked the assistant: "${question.slice(0, 120)}" → ${route.intent}`,
     }),
   );
   return ok<Answer & { routedBy: "ai" | "rules" }>({ ...result, routedBy: ai.ok ? "ai" : "rules" });
