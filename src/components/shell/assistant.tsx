@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowUpIcon, BotIcon, Loader2Icon, RotateCcwIcon, ShieldCheckIcon, SparklesIcon, XIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Answer } from "@/lib/copilot/answers";
 import type { Intent } from "@/lib/copilot/router";
 import { askAssistant } from "@/lib/copilot/actions";
@@ -44,6 +45,7 @@ export function Assistant({
   intents: Intent[];
 }) {
   const [open, setOpen] = useState(false);
+  const visible = useBuzzVisible();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
@@ -55,6 +57,13 @@ export function Assistant({
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, open]);
+
+  // Turned back on from the top bar: open straight away.
+  useEffect(() => {
+    const onShow = () => setOpen(true);
+    window.addEventListener(OPEN_EVENT, onShow);
+    return () => window.removeEventListener(OPEN_EVENT, onShow);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +94,8 @@ export function Assistant({
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, answer: res.data } : x)));
     });
   };
+
+  if (!visible) return null;
 
   return (
     <div className="print:hidden">
@@ -233,17 +244,98 @@ export function Assistant({
         </section>
       )}
 
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-label={open ? "Close Buzz assistant" : "Open Buzz assistant"}
-        className="group fixed right-3 bottom-3 z-50 flex items-center gap-2 rounded-full bg-linear-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-3.5 text-white shadow-xl shadow-violet-500/40 transition-transform hover:scale-105 sm:right-6 sm:bottom-6"
-      >
-        {!open && <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-violet-500/30 [animation-duration:2.5s]" />}
-        {open ? <XIcon className="size-6" /> : <SparklesIcon className="size-6" />}
-        {!open && messages.length === 0 && <span className="hidden pr-1 text-sm font-semibold sm:inline">Ask Buzz</span>}
-      </button>
+      <div className="group fixed right-3 bottom-3 z-50 sm:right-6 sm:bottom-6">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={open ? "Close Buzz assistant" : "Open Buzz assistant"}
+          title="Ask Buzz"
+          className="relative flex size-12 items-center justify-center rounded-full bg-linear-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-xl shadow-violet-500/40 transition-transform hover:scale-105"
+        >
+          {!open && <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-violet-500/30 [animation-duration:2.5s]" />}
+          {open ? <XIcon className="size-5" /> : <SparklesIcon className="size-5" />}
+        </button>
+        {!open && (
+          // Out of the way when it covers something: hide it; the ✨ in the top bar brings it back.
+          <button
+            type="button"
+            onClick={() => {
+              setBuzzVisible(false);
+              toast("Buzz is hidden", { description: "Turn it back on with the ✨ button in the top bar." });
+            }}
+            aria-label="Hide Buzz"
+            title="Hide Buzz"
+            className="bg-background text-muted-foreground hover:text-foreground absolute -top-1.5 -left-1.5 flex size-5 items-center justify-center rounded-full border shadow-sm transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
+          >
+            <XIcon className="size-3" />
+          </button>
+        )}
+      </div>
     </div>
+  );
+}
+
+// ─── Show / hide ────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = "cb-buzz";
+const CHANGE_EVENT = "cb:buzz-visibility";
+const OPEN_EVENT = "cb:buzz-open";
+
+function readVisible() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function setBuzzVisible(on: boolean) {
+  try {
+    localStorage.setItem(STORAGE_KEY, on ? "on" : "off");
+  } catch {
+    // Private mode: still toggles for this page view.
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+/** Whether Buzz is switched on for this person (remembered in this browser). */
+function useBuzzVisible() {
+  return useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener(CHANGE_EVENT, onChange);
+      window.addEventListener("storage", onChange);
+      return () => {
+        window.removeEventListener(CHANGE_EVENT, onChange);
+        window.removeEventListener("storage", onChange);
+      };
+    },
+    readVisible,
+    () => true,
+  );
+}
+
+/** Top-bar switch: turns the Buzz bubble on or off. */
+export function BuzzToggle() {
+  const visible = useBuzzVisible();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setBuzzVisible(!visible);
+        if (!visible) window.dispatchEvent(new Event(OPEN_EVENT));
+      }}
+      aria-pressed={visible}
+      aria-label={visible ? "Hide Ask Buzz" : "Show Ask Buzz"}
+      title={visible ? "Hide Ask Buzz" : "Show Ask Buzz"}
+      className={cn(
+        "flex size-9 items-center justify-center rounded-full transition-colors",
+        visible
+          ? "bg-linear-to-br from-indigo-600 to-fuchsia-600 text-white shadow-sm"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <SparklesIcon className="size-4" />
+    </button>
   );
 }

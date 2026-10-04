@@ -18,6 +18,7 @@ import {
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Logo } from "./logo";
 import { NotificationBell } from "./notification-bell";
+import { BuzzToggle } from "./assistant";
 import { visibleNav, type NavGroup } from "./nav";
 import { TONES } from "./tones";
 import { cn } from "@/lib/utils";
@@ -123,12 +124,13 @@ export function AppShell({
             <kbd className="bg-background ml-auto hidden rounded border px-1.5 font-mono text-[10px] sm:inline">Ctrl K</kbd>
           </button>
           <div className="flex items-center gap-1 lg:ml-auto">
+            <BuzzToggle />
             <NotificationBell />
             <ThemeMenu />
             <UserMenu user={user} />
           </div>
         </header>
-        <main className="relative mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="relative mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-24 sm:px-6 lg:px-8 lg:pt-8">{children}</main>
       </div>
 
       <NavPalette nav={nav} open={paletteOpen} onOpenChange={setPaletteOpen} />
