@@ -230,16 +230,25 @@ export function Mockup3D({
   );
 }
 
-// ─── Photo mockups (on a model) ──────────────────────────────────────────────
+// ─── Photo mockups ───────────────────────────────────────────────────────────
 
-type Photo = { src: string; w: number; h: number; print: [number, number, number, number]; dark: boolean; filter?: string };
+type Photo = {
+  src: string;
+  w: number;
+  h: number;
+  print: [number, number, number, number];
+  dark: boolean;
+  filter?: string;
+  /** Cut-out of the product (white = product): the photo is recoloured to the chosen colour inside it. */
+  mask?: string;
+};
 
 /**
  * Real photos with a measured chest print area (percent of the image). The
  * design is blended into the fabric — multiply on light garments, screen on
  * dark ones — so folds and shading show through like real ink.
  */
-const PHOTOS: Record<"hoodie" | "tshirt", { light: { model: Photo; product: Photo }; dark: { model: Photo; product: Photo } }> = {
+const PHOTOS: Record<ProductTypeKey, { light: { model: Photo; product: Photo }; dark: { model: Photo; product: Photo } }> = {
   hoodie: {
     light: {
       model: { src: "/mockups/hoodie-light.jpg", w: 1200, h: 1797, print: [33, 44, 36, 27], dark: false },
@@ -274,8 +283,30 @@ const PHOTOS: Record<"hoodie" | "tshirt", { light: { model: Photo; product: Phot
       },
     },
   },
+  cap: tinted({ src: "/mockups/cap.jpg", w: 1200, h: 1200, print: [35, 40, 30, 22], mask: "/mockups/cap-mask.png" }),
+  tote: tinted({ src: "/mockups/tote.jpg", w: 1200, h: 800, print: [37.5, 41, 26, 34], mask: "/mockups/tote-mask.png" }),
+  mug: tinted({ src: "/mockups/mug.jpg", w: 1200, h: 800, print: [37.5, 33, 28.5, 42], mask: "/mockups/mug-mask.png" }),
 };
 
+const PHOTO_ALT: Record<ProductTypeKey, string> = {
+  hoodie: "Hoodie on a model",
+  tshirt: "T-shirt",
+  cap: "Cap, front view",
+  tote: "Canvas tote bag",
+  mug: "Ceramic mug",
+};
+
+/** A white product photo that is recoloured to any colour (the print blends to suit light or dark). */
+function tinted(p: Omit<Photo, "dark">) {
+  return {
+    light: { model: { ...p, dark: false }, product: { ...p, dark: false } },
+    dark: { model: { ...p, dark: true }, product: { ...p, dark: true } },
+  };
+}
+
+/** Garments have a photo on a model and a flat one; the rest have a single product photo. */
+export const photoViews = (type: ProductTypeKey) =>
+  type === "hoodie" || type === "tshirt" ? (["model", "product"] as const) : (["product"] as const);
 
 const isLight = (hex: string) => {
   const n = Number.parseInt(hex.replace("#", ""), 16);
@@ -303,26 +334,48 @@ export function PhotoMockup({
   className?: string;
 }) {
   if (!hasPhotoMockup(type)) return null;
-  const p = PHOTOS[type as "hoodie" | "tshirt"][isLight(color) ? "light" : "dark"][view];
+  const p = PHOTOS[type][isLight(color) ? "light" : "dark"][photoViews(type).includes(view as never) ? view : "product"];
   const [x, y, w, h] = p.print;
   const blend = p.dark ? "screen" : "multiply";
   const ratio = p.h / p.w;
-  // Square crop: centre the print area vertically.
+  // Square crop: centre the print area vertically (tall photos) or horizontally (wide photos).
   const shift = crop === "square" && ratio > 1 ? Math.min(ratio - 1, Math.max(0, ((y + h / 2) / 100) * ratio - 0.5)) / ratio : 0;
+  const wide = crop === "square" && ratio < 1 ? 1 / ratio : 0;
+  const shiftX = wide ? Math.min(wide - 1, Math.max(0, ((x + w / 2) / 100) * wide - 0.5)) / wide : 0;
 
   const photo = (
     <div
-      className="relative w-full"
-      style={{ aspectRatio: `${p.w} / ${p.h}`, transform: shift ? `translateY(-${shift * 100}%)` : undefined }}
+      className="relative"
+      style={{
+        aspectRatio: `${p.w} / ${p.h}`,
+        // Wide photos in a square tile fill its height and slide sideways to the print.
+        width: wide ? `${wide * 100}%` : "100%",
+        transform: shift ? `translateY(-${shift * 100}%)` : shiftX ? `translateX(-${shiftX * 100}%)` : undefined,
+      }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- local static photo; sizes vary per mockup */}
       <img
         src={p.src}
-        alt={`${type === "hoodie" ? "Hoodie" : "T-shirt"} on a model`}
+        alt={PHOTO_ALT[type]}
         className="absolute inset-0 size-full object-cover"
         style={{ filter: p.filter }}
         draggable={false}
       />
+      {p.mask && (
+        // Recolour only the product (cut-out mask); multiply keeps the photo's light and shadow.
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            backgroundColor: color,
+            mixBlendMode: "multiply",
+            maskImage: `url(${p.mask})`,
+            WebkitMaskImage: `url(${p.mask})`,
+            maskSize: "100% 100%",
+            WebkitMaskSize: "100% 100%",
+          }}
+        />
+      )}
       <div
         className="absolute flex items-center justify-center"
         style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`, mixBlendMode: blend }}
@@ -368,7 +421,10 @@ type Side = { artwork?: string | null; text?: string | null; ink?: string };
  */
 export function MerchPreview({ type, color, front, back }: { type: ProductTypeKey; color: string; front: Side; back: Side }) {
   const photos = hasPhotoMockup(type);
-  const [view, setView] = useState<"model" | "product" | "3d">("model");
+  const views = photos ? photoViews(type) : [];
+  const [picked, setView] = useState<"model" | "product" | "3d">("model");
+  // Garments open "on model"; caps, totes and mugs on their product photo.
+  const view = picked === "3d" || (views as readonly string[]).includes(picked) ? picked : (views[0] ?? "3d");
   const current = photos ? view : "3d";
   return (
     <div className="grid gap-3">
@@ -382,24 +438,26 @@ export function MerchPreview({ type, color, front, back }: { type: ProductTypeKe
           {(
             [
               ["model", "On model"],
-              ["product", "Flat"],
+              ["product", views.length > 1 ? "Flat" : "Photo"],
               ["3d", "3D"],
             ] as const
-          ).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={current === k}
-              onClick={() => setView(k)}
-              className={cn(
-                "rounded-md px-3 py-1",
-                current === k ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+          )
+            .filter(([k]) => k === "3d" || (views as readonly string[]).includes(k))
+            .map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={current === k}
+                onClick={() => setView(k)}
+                className={cn(
+                  "rounded-md px-3 py-1",
+                  current === k ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
         </div>
       )}
     </div>
