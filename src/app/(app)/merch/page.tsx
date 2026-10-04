@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardListIcon, PackageIcon, PaletteIcon, PlusIcon, ShirtIcon } from "lucide-react";
+import { ArchiveIcon, ClipboardListIcon, PackageIcon, PaletteIcon, PlusIcon, ShirtIcon } from "lucide-react";
 import { db } from "@/lib/db";
 import { can, requireUser } from "@/lib/auth/current-user";
-import { EmptyState, PageHeader } from "@/components/common";
+import { EmptyState, PageHeader, PageTabs, activeTab } from "@/components/common";
+import { ArchiveProductButton } from "./merch-forms";
 import { MockupFace, PhotoMockup } from "@/components/merch/mockup";
 import { hasPhotoMockup } from "@/lib/merch/photos";
 import { Button } from "@/components/ui/button";
@@ -23,13 +24,16 @@ const designSelect = {
   backText: true,
 } as const;
 
-export default async function MerchStorePage() {
+export default async function MerchStorePage(props: PageProps<"/merch">) {
   const user = await requireUser();
   const staff = can(user, "merchandise.view");
+  // Staff can open the archive: products hidden from the store for now.
+  const tab = staff ? activeTab(["store", "archived"] as const, (await props.searchParams).tab) : "store";
+  const manage = can(user, "merchandise.manage_products");
 
-  const [products, terms, pendingOrders, lowStock] = await Promise.all([
+  const [products, terms, pendingOrders, lowStock, archivedCount] = await Promise.all([
     db.product.findMany({
-      where: staff ? { status: { not: "ARCHIVED" } } : { status: "ACTIVE" },
+      where: tab === "archived" ? { status: "ARCHIVED" } : staff ? { status: { not: "ARCHIVED" } } : { status: "ACTIVE" },
       orderBy: [{ status: "asc" }, { name: "asc" }],
       include: {
         design: { select: designSelect },
@@ -43,6 +47,7 @@ export default async function MerchStorePage() {
           where: { isActive: true, product: { status: "ACTIVE" }, stock: { lte: db.productVariant.fields.reorderLevel } },
         })
       : 0,
+    staff ? db.product.count({ where: { status: "ARCHIVED" } }) : 0,
   ]);
   const state = standing(terms).state;
   const isMember = state === "ACTIVE" || state === "EXPIRING";
@@ -84,8 +89,25 @@ export default async function MerchStorePage() {
         }
       />
 
+      {staff && (
+        <PageTabs
+          basePath="/merch"
+          current={tab}
+          tabs={[
+            { key: "store", label: "In store" },
+            { key: "archived", label: "Archived", count: archivedCount || undefined },
+          ]}
+        />
+      )}
+
       {products.length === 0 ? (
-        <EmptyState icon={ShirtIcon} title="Nothing in the store yet" />
+        tab === "archived" ? (
+          <EmptyState icon={ArchiveIcon} title="Nothing archived">
+            Archive a product from its page to hide it from the store for a while.
+          </EmptyState>
+        ) : (
+          <EmptyState icon={ShirtIcon} title="Nothing in the store yet" />
+        )
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => {
@@ -140,6 +162,11 @@ export default async function MerchStorePage() {
                     </p>
                   </div>
                 </Link>
+                {p.status === "ARCHIVED" && manage && (
+                  <div className="mt-2">
+                    <ArchiveProductButton productId={p.id} name={p.name} archived />
+                  </div>
+                )}
               </li>
             );
           })}

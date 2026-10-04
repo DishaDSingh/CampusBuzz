@@ -450,6 +450,9 @@ export const confirmMerchSchema = z.intersection(z.object({ orderId: id }), paym
 export const voidMerchSchema = z.object({ orderId: id, reason: z.string().trim().min(3, "Give a short reason").max(200) });
 export const merchOrderIdSchema = z.object({ orderId: id });
 
+/** Archive hides a product from the store for now; un-archiving makes it live again. */
+export const archiveProductSchema = z.object({ productId: id, archived: z.boolean() });
+
 const PRODUCT_TYPE_KEYS = ["hoodie", "tshirt", "cap", "tote", "mug"] as const;
 export const designSchema = z
   .object({

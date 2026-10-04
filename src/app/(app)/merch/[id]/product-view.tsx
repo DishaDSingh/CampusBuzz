@@ -15,6 +15,7 @@ export function ProductView({
   publicPricePaise,
   isMember,
   buyable,
+  archived = false,
 }: {
   art: { type: ProductTypeKey; color: string; front: Art; back: Art };
   variants: { id: string; size: string; color: string; colorHex: string; stock: number }[];
@@ -22,6 +23,7 @@ export function ProductView({
   publicPricePaise: number;
   isMember: boolean;
   buyable: boolean;
+  archived?: boolean;
 }) {
   const [color, setColor] = useState(art.color);
   return (
@@ -37,7 +39,7 @@ export function ProductView({
             onColor={setColor}
           />
         ) : (
-          <p className="text-muted-foreground text-sm">Not on sale yet.</p>
+          <p className="text-muted-foreground text-sm">{archived ? "Archived — not on sale right now." : "Not on sale yet."}</p>
         )}
       </div>
     </div>

@@ -10,6 +10,7 @@ import { holdUntil } from "@/lib/events/service";
 import { priceMerch, skuFor } from "@/lib/merch/rules";
 import { OutOfStockError, moveStock, nextMerchOrderNumber, settleMerchOrder, voidMerchOrder } from "@/lib/merch/service";
 import {
+  archiveProductSchema,
   buyMerchSchema,
   confirmMerchSchema,
   deskMerchSaleSchema,
@@ -125,6 +126,34 @@ export const updateProduct = guardedAction({ permission: "merchandise.manage_pro
   refresh(input.productId);
   return ok(undefined, "Product saved");
 });
+
+/**
+ * Archive = hide from the store for now (members can't see or order it; stock,
+ * sales history and existing orders are kept). Un-archiving makes it live again.
+ */
+export const setProductArchived = guardedAction(
+  { permission: "merchandise.manage_products", schema: archiveProductSchema },
+  async ({ productId, archived }, actor) => {
+    const p = await db.product.findUnique({ where: { id: productId }, select: { name: true, status: true } });
+    if (!p) return fail("Product not found.");
+    const next = archived ? "ARCHIVED" : "ACTIVE";
+    if (p.status === next) return ok(undefined, archived ? "Already archived" : "Already live");
+    await db.$transaction(async (tx) => {
+      await tx.product.update({ where: { id: productId }, data: { status: next } });
+      await audit(tx, {
+        actor,
+        action: archived ? "product.archive" : "product.unarchive",
+        entityType: "Product",
+        entityId: productId,
+        summary: archived ? `Archived "${p.name}" — hidden from the store` : `Made "${p.name}" live again`,
+        before: { status: p.status },
+        after: { status: next },
+      });
+    });
+    refresh(productId);
+    return ok(undefined, archived ? `"${p.name}" archived — hidden from the store` : `"${p.name}" is live again`);
+  },
+);
 
 export const adjustStock = guardedAction(
   { permission: "merchandise.manage_inventory", schema: stockAdjustSchema },

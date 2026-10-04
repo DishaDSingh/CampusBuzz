@@ -6,10 +6,33 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { toast } from "sonner";
-import { CheckIcon, HandIcon, Loader2Icon, PackagePlusIcon, PencilIcon, PlusIcon, ShoppingBagIcon, Trash2Icon, XIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  CheckIcon,
+  HandIcon,
+  Loader2Icon,
+  PackagePlusIcon,
+  PencilIcon,
+  PlusIcon,
+  ShoppingBagIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, NativeSelect, applyServerErrors } from "@/components/form/field";
 import { UserPicker, type PickedUser } from "@/components/form/user-picker";
@@ -33,6 +56,7 @@ import {
   createProduct,
   deskMerchSale,
   fulfilMerchOrder,
+  setProductArchived,
   setReorderLevel,
   updateProduct,
   voidMerch,
@@ -803,5 +827,49 @@ export function CancelMyMerchOrderButton({ orderId }: { orderId: string }) {
     >
       Cancel order
     </Button>
+  );
+}
+
+// ─── Archive / make live again ───────────────────────────────────────────────
+
+export function ArchiveProductButton({ productId, name, archived }: { productId: string; name: string; archived: boolean }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const run = () =>
+    startTransition(async () => {
+      const res = await setProductArchived({ productId, archived: !archived });
+      if (!res.ok) return void toast.error(res.error);
+      toast.success(res.message);
+      router.refresh();
+    });
+
+  if (archived)
+    return (
+      <Button onClick={run} disabled={pending}>
+        {pending ? <Loader2Icon className="animate-spin" /> : <ArchiveRestoreIcon />} Make live again
+      </Button>
+    );
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" disabled={pending}>
+          <ArchiveIcon /> Archive
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Archive “{name}”?</AlertDialogTitle>
+          <AlertDialogDescription>
+            It disappears from the store, so members can&apos;t see or order it. Nothing is deleted: stock, sales and existing orders stay
+            as they are. You can make it live again any time from the Archived tab.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep it live</AlertDialogCancel>
+          <AlertDialogAction onClick={run}>Archive</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

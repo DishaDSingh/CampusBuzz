@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 import { formatINR, standing } from "@/lib/membership/rules";
 import { marginPct, sizeRank, stockState } from "@/lib/merch/rules";
 import { mockupProps } from "@/lib/merch/art";
-import { EditProductDialog, ReorderLevelInput, StockDialog } from "../merch-forms";
+import { ArchiveIcon } from "lucide-react";
+import { ArchiveProductButton, EditProductDialog, ReorderLevelInput, StockDialog } from "../merch-forms";
 import { ProductView } from "./product-view";
 
 export const metadata: Metadata = { title: "Product" };
@@ -90,8 +91,22 @@ export default async function ProductPage(props: PageProps<"/merch/[id]">) {
             )}
           </>
         }
-        actions={can(user, "merchandise.manage_products") && <EditProductDialog product={p} />}
+        actions={
+          can(user, "merchandise.manage_products") && (
+            <>
+              <ArchiveProductButton productId={p.id} name={p.name} archived={p.status === "ARCHIVED"} />
+              <EditProductDialog product={p} />
+            </>
+          )
+        }
       />
+
+      {p.status === "ARCHIVED" && (
+        <p className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200">
+          <ArchiveIcon className="size-4 shrink-0" /> Archived — hidden from the store. Members can&apos;t see or order it until it&apos;s
+          made live again.
+        </p>
+      )}
 
       {staff && (
         <PageTabs
@@ -113,6 +128,7 @@ export default async function ProductPage(props: PageProps<"/merch/[id]">) {
             publicPricePaise={p.publicPricePaise}
             isMember={isMember}
             buyable={p.status === "ACTIVE"}
+            archived={p.status === "ARCHIVED"}
           />
           {p.description && <p className="text-muted-foreground mt-6 max-w-2xl text-sm">{p.description}</p>}
           <p className="text-muted-foreground mt-3 text-xs">Preview is a visual mockup; final print may differ slightly.</p>
