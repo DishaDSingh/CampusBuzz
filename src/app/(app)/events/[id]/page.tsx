@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
 import { formatINR, standing } from "@/lib/membership/rules";
 import { attendanceRate, eventPhase, salesState } from "@/lib/events/rules";
 import { eventStats } from "@/lib/events/load";
+import { countAudience } from "@/lib/announcements";
+import { aiConfigured } from "@/lib/ai/claude";
+import { EventAnnouncementCard } from "./announcement-card";
 import {
   BuyTicketsPanel,
   CancelEventDialog,
@@ -94,6 +97,26 @@ export default async function EventPage(props: PageProps<"/events/[id]">) {
   const myState = standing(myTerms).state;
   const isMember = myState === "ACTIVE" || myState === "EXPIRING";
   const activeTypes = event.ticketTypes.filter((t) => t.isActive);
+
+  // The event's announcement: drafted here by the organizer, approved by an admin, then sent.
+  const writesAnnouncements = tab === "overview" && can(user, "announcements.create") && event.status !== "CANCELLED";
+  const [annDraft, updates, annCounts] = await Promise.all([
+    writesAnnouncements
+      ? db.announcement.findFirst({
+          where: { eventId: id, status: { in: ["DRAFT", "PENDING"] } },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, title: true, body: true, audience: true, status: true, reviewNote: true, source: true },
+        })
+      : null,
+    tab === "overview"
+      ? db.announcement.findMany({
+          where: { eventId: id, status: "PUBLISHED" },
+          orderBy: { publishedAt: "desc" },
+          select: { id: true, title: true, body: true, publishedAt: true },
+        })
+      : [],
+    writesAnnouncements ? Promise.all([countAudience("EVENT", id), countAudience("MEMBERS")]) : [0, 0],
+  ]);
 
   return (
     <>
@@ -203,6 +226,31 @@ export default async function EventPage(props: PageProps<"/events/[id]">) {
 
       <div className={cn("grid gap-6", tab === "overview" && "lg:grid-cols-[1fr_24rem]")}>
         <div className="grid min-w-0 content-start gap-6">
+          {updates.length > 0 && (
+            <Section title="Updates from the organizers">
+              <ol className="grid gap-4">
+                {updates.map((u) => (
+                  <li key={u.id} className="border-l-2 border-[var(--page-accent)] pl-3">
+                    <p className="text-muted-foreground text-xs">{fmtDateTime(u.publishedAt)}</p>
+                    <p className="font-semibold">{u.title}</p>
+                    <p className="mt-1 text-sm whitespace-pre-line">{u.body}</p>
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          )}
+          {writesAnnouncements && (
+            <EventAnnouncementCard
+              // Remount when a new draft appears so the fields show it.
+              key={annDraft ? `${annDraft.id}:${annDraft.status}` : "none"}
+              eventId={id}
+              draft={annDraft}
+              counts={{ EVENT: annCounts[0], MEMBERS: annCounts[1] }}
+              canPublish={can(user, "announcements.publish")}
+              ai={aiConfigured()}
+              sentBefore={updates.length > 0}
+            />
+          )}
           {event.description && tab === "overview" && (
             <Section title="About">
               <p className="text-sm leading-relaxed whitespace-pre-line">{event.description}</p>

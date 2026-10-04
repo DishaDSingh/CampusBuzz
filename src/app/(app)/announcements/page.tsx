@@ -6,7 +6,7 @@ import { can, requireUser } from "@/lib/auth/current-user";
 import { EmptyState, PageHeader, PageTabs, activeTab } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import { AUDIENCES, audiencesFor, type Audience } from "@/lib/announcements";
+import { AUDIENCES, visibleAnnouncementsWhere, type Audience } from "@/lib/announcements";
 
 export const metadata: Metadata = { title: "Announcements" };
 
@@ -17,15 +17,17 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
   const editor = can(user, "announcements.view");
   const tab = editor ? activeTab(["sent", "drafts"] as const, sp.tab) : "sent";
   // Editors see everything that was sent; everyone else sees what was addressed to them.
-  const mine = editor ? null : await audiencesFor(user.id);
-  const [list, drafts] = await Promise.all([
+  const sentWhere = editor ? { status: "PUBLISHED" } : await visibleAnnouncementsWhere(user.id);
+  const [list, drafts, approvals] = await Promise.all([
     db.announcement.findMany({
-      where: { status: tab === "drafts" ? "DRAFT" : "PUBLISHED", ...(mine && { audience: { in: mine } }) },
-      orderBy: tab === "drafts" ? { updatedAt: "desc" } : { publishedAt: "desc" },
+      where: tab === "drafts" ? { status: { in: ["DRAFT", "PENDING"] } } : sentWhere,
+      // Waiting for approval first ("PENDING" sorts after "DRAFT", so descending).
+      orderBy: tab === "drafts" ? [{ status: "desc" }, { updatedAt: "desc" }] : { publishedAt: "desc" },
       take: 50,
-      include: { createdBy: { select: { name: true } } },
+      include: { createdBy: { select: { name: true } }, event: { select: { id: true, title: true } } },
     }),
-    editor ? db.announcement.count({ where: { status: "DRAFT" } }) : 0,
+    editor ? db.announcement.count({ where: { status: { in: ["DRAFT", "PENDING"] } } }) : 0,
+    editor ? db.announcement.count({ where: { status: "PENDING" } }) : 0,
   ]);
 
   return (
@@ -51,7 +53,11 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
           current={tab}
           tabs={[
             { key: "sent", label: "Sent" },
-            { key: "drafts", label: "Drafts", count: drafts || undefined },
+            {
+              key: "drafts",
+              label: approvals ? `Drafts · ${approvals} to approve` : "Drafts",
+              count: approvals ? undefined : drafts || undefined,
+            },
           ]}
         />
       )}
@@ -71,10 +77,19 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
                     {a.source === "ai" && <SparklesIcon className="text-primary size-3.5 shrink-0" aria-label="AI draft" />}
                   </p>
                   <p className="text-muted-foreground text-xs">
-                    For {AUDIENCES[a.audience as Audience].toLowerCase()} · {a.createdBy?.name ?? "—"} · {fmtDateTime(a.updatedAt)}
+                    {a.event ? `${a.event.title} · ` : ""}For {AUDIENCES[a.audience as Audience].toLowerCase()} · {a.createdBy?.name ?? "—"}{" "}
+                    · {fmtDateTime(a.updatedAt)}
                   </p>
                 </div>
-                <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Not sent</span>
+                {a.status === "PENDING" ? (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                    Needs approval
+                  </span>
+                ) : a.reviewNote ? (
+                  <span className="text-xs font-medium text-rose-700 dark:text-rose-300">Changes requested</span>
+                ) : (
+                  <span className="text-muted-foreground text-xs font-medium">Draft</span>
+                )}
               </Link>
             </li>
           ))}
@@ -88,6 +103,11 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
                 {editor && ` · sent to ${a.recipients}`}
               </p>
               <h2 className="mt-1 font-semibold">{a.title}</h2>
+              {a.event && (
+                <Link href={`/events/${a.event.id}`} className="text-primary text-xs font-medium hover:underline">
+                  {a.event.title} →
+                </Link>
+              )}
               <p className="mt-2 text-sm whitespace-pre-line">{a.body}</p>
             </li>
           ))}

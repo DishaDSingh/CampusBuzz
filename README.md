@@ -22,6 +22,7 @@ explains what's happening and helps plan what's next. Every AI feature proposes;
 - **Merch studio**: describe the merch in one line ("classic navy hoodie for Diwali Gala 2026") and get a professional design on real hoodie/tee photos.
 - **Volunteers** at a glance (free / busy / overloaded), **reports** with an "At a glance" summary, **minutes of meeting**.
 - **Users** and **Roles** grouped by hierarchy — Master Admin, council, heads, committee, volunteers, members — with names.
+- **Event announcements with approval**: when creating an event, describe it in a line; the official announcement (date, venue, ticket prices from the event) is drafted for the organizer to edit, then sent for approval. An admin approves and sends it — to everyone taking part or to all members — or sends it back with a note. Sent updates appear on the event page.
 - **Buzz assistant**: a chat bubble bottom-right on every page. It answers from live data but only what the person's role allows (a member asking about finance is politely refused; a Master Admin can ask anything), plus personal questions (my membership, tickets, orders, tasks, access) and "where do I…".
 - Removed: the What-if simulator and the CCTV module (privacy).
 

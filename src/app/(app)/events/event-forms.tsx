@@ -37,6 +37,7 @@ import {
   voidOrderSchema,
 } from "@/lib/validation/schemas";
 import { PaymentFields } from "../members/member-forms";
+import { draftEventAnnouncementAction } from "../announcements/actions";
 import {
   buyTickets,
   cancelEvent,
@@ -67,9 +68,19 @@ type EventDefaults = {
   committeeId: string;
 };
 
-export function EventForm({ defaults, committees }: { defaults: EventDefaults; committees: { id: string; name: string }[] }) {
+export function EventForm({
+  defaults,
+  committees,
+  canAnnounce = false,
+}: {
+  defaults: EventDefaults;
+  committees: { id: string; name: string }[];
+  /** New events: offer to write the announcement from a prompt right away. */
+  canAnnounce?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [announcePrompt, setAnnouncePrompt] = useState("");
   const [organizer, setOrganizer] = useState<PickedUser | null>(defaults.organizer);
   const form = useForm<z.input<typeof eventSchema>>({
     resolver: zodResolver(eventSchema),
@@ -88,6 +99,13 @@ export function EventForm({ defaults, committees }: { defaults: EventDefaults; c
         return void toast.error(res.error);
       }
       toast.success(res.message);
+      if (canAnnounce && announcePrompt.trim()) {
+        // Draft the official announcement now; the organizer reviews it on the event page.
+        const ann = await draftEventAnnouncementAction({ eventId: res.data.id, prompt: announcePrompt, useAi: true });
+        if (ann.ok) toast.success(ann.message);
+        else toast.error(ann.error);
+        return router.push(`/events/${res.data.id}#announcement`);
+      }
       router.push(`/events/${res.data.id}`);
     }),
   );
@@ -126,6 +144,23 @@ export function EventForm({ defaults, committees }: { defaults: EventDefaults; c
             {...form.register("description")}
           />
         </Field>
+        {canAnnounce && (
+          <div className="grid gap-2 rounded-xl border border-dashed border-[color-mix(in_oklch,var(--page-accent)_45%,transparent)] bg-[color-mix(in_oklch,var(--page-accent)_6%,transparent)] p-3 sm:p-4">
+            <Field
+              id="announcePrompt"
+              label="📣 Announcement (optional)"
+              hint="Describe it in a line. We'll write the official announcement — with the date, venue and ticket prices — for you to check and send for approval."
+            >
+              <Textarea
+                rows={2}
+                value={announcePrompt}
+                onChange={(ev) => setAnnouncePrompt(ev.target.value)}
+                maxLength={1000}
+                placeholder="e.g. Grand cultural night with live music, food stalls and an ethnic dress code"
+              />
+            </Field>
+          </div>
+        )}
       </section>
 
       <aside className="grid content-start gap-4">

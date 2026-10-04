@@ -751,8 +751,23 @@ export const saveAnnouncementSchema = z.object({
   announcementId: id,
   title: z.string().trim().min(3, "Add a title").max(120),
   body: z.string().trim().min(10, "Write the announcement").max(5000),
-  audience: z.enum(AUDIENCE_VALUES),
+  // EVENT (everyone taking part) is only valid for announcements linked to an event.
+  audience: z.enum([...AUDIENCE_VALUES, "EVENT"]),
 });
 
 /** The publisher confirms the exact recipient count they were shown. */
 export const publishAnnouncementSchema = z.object({ announcementId: id, confirmRecipients: z.number().int().min(0) });
+
+/** The organizer describes the event in a sentence; the official template does the rest. */
+export const eventAnnouncementSchema = z.object({
+  eventId: id,
+  prompt: z.string().trim().max(1000, "Keep it under 1000 characters").default(""),
+  useAi: z.boolean().default(true),
+});
+
+export const submitAnnouncementSchema = z.object({ announcementId: id });
+
+export const returnAnnouncementSchema = z.object({
+  announcementId: id,
+  note: z.string().trim().min(3, "Say what should change").max(500),
+});

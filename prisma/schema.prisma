@@ -467,18 +467,19 @@ model Event {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  organizer   User?           @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: SetNull)
-  createdBy   User?           @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  committee   Committee?      @relation(fields: [committeeId], references: [id], onDelete: SetNull)
-  ticketTypes TicketType[]
-  orders      TicketOrder[]
-  tickets     Ticket[]
-  incidents   EventIncident[]
-  expenses    Expense[]
-  memories    MemoryItem[]
-  cameras     Camera[]
-  fundraisers Fundraiser[]
-  tasks       Task[]
+  organizer     User?           @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: SetNull)
+  createdBy     User?           @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  committee     Committee?      @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  ticketTypes   TicketType[]
+  orders        TicketOrder[]
+  tickets       Ticket[]
+  incidents     EventIncident[]
+  expenses      Expense[]
+  memories      MemoryItem[]
+  cameras       Camera[]
+  fundraisers   Fundraiser[]
+  tasks         Task[]
+  announcements Announcement[]
 
   @@index([status, startsAt])
 }
@@ -1058,8 +1059,9 @@ model Announcement {
   id            String    @id @default(cuid())
   title         String
   body          String
-  /// ALL | MEMBERS | VOLUNTEERS
+  /// ALL | MEMBERS | TODAY | EXPIRING | VOLUNTEERS | EVENT
   audience      String    @default("MEMBERS")
+  /// DRAFT → PENDING (waiting for approval) → PUBLISHED
   status        String    @default("DRAFT")
   source        String    @default("manual")
   recipients    Int       @default(0)
@@ -1069,7 +1071,16 @@ model Announcement {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  createdBy User? @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  /// Set for an event's announcement: drafted from the event, approved, then sent to its participants.
+  eventId     String?
+  /// When the author sent it for approval (status PENDING).
+  submittedAt DateTime?
+  /// The approver's note when they send it back for changes.
+  reviewNote  String?
+
+  createdBy User?  @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([status, publishedAt])
+  @@index([eventId])
 }

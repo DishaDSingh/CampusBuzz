@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/auth/current-user";
+import { can, requirePermission } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/common";
 import { EventForm } from "../event-forms";
 
@@ -18,6 +18,7 @@ export default async function NewEventPage() {
       />
       <EventForm
         committees={committees}
+        canAnnounce={can(user, "announcements.create")}
         defaults={{
           title: "",
           description: "",

@@ -73,3 +73,54 @@ export const suggestedTemplate: Record<AudienceKey, string> = {
   MEMBERS: "event",
   ALL: "general",
 };
+
+// ─── Event announcements ─────────────────────────────────────────────────────
+
+export type EventFacts = {
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  venue: string;
+  description: string | null;
+  salesOpenAt: Date | null;
+  organizer: string | null;
+  ticketTypes: { name: string; memberPricePaise: number; publicPricePaise: number }[];
+};
+
+const rupees = (p: number) => (p === 0 ? "Free" : `₹${(p / 100).toLocaleString("en-IN")}`);
+const when = (d: Date) =>
+  d.toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
+
+/**
+ * The official event announcement: every fact (date, venue, prices, how to
+ * book) comes from the event itself; the organizer's prompt adds the tone and
+ * highlights. AI may polish the wording but is told never to change facts.
+ */
+export function eventTemplate(e: EventFacts, prompt: string, orgName: string) {
+  const sameDay = e.startsAt.toDateString() === e.endsAt.toDateString();
+  const time = sameDay
+    ? `${when(e.startsAt)} – ${e.endsAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`
+    : `${when(e.startsAt)} to ${when(e.endsAt)}`;
+  const tickets = e.ticketTypes.length
+    ? e.ticketTypes
+        .map((t) =>
+          t.memberPricePaise === t.publicPricePaise
+            ? `• ${t.name}: ${rupees(t.publicPricePaise)}`
+            : `• ${t.name}: ${rupees(t.memberPricePaise)} for members, ${rupees(t.publicPricePaise)} for others`,
+        )
+        .join("\n")
+    : "• [add ticket prices]";
+  const highlight = prompt.trim() || e.description?.trim() || "[add what makes this event special]";
+  return {
+    title: `📣 ${e.title} — ${e.startsAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`.slice(0, 120),
+    body: [
+      "Hi everyone,",
+      `We're excited to announce ${e.title}!`,
+      highlight,
+      `🗓 When: ${time}\n📍 Where: ${e.venue}`,
+      `🎟 Tickets\n${tickets}${e.salesOpenAt && e.salesOpenAt > new Date() ? `\nSales open ${when(e.salesOpenAt)}.` : ""}`,
+      `🎫 Book your seat on CampusBuzz: open Events → ${e.title}.`,
+      `See you there!\n— ${e.organizer ? `${e.organizer}, on behalf of ` : ""}${orgName}`,
+    ].join("\n\n"),
+  };
+}

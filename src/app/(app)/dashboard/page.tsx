@@ -16,7 +16,7 @@ import { loadCalendar } from "@/lib/calendar/load";
 import { KIND_LABEL } from "@/lib/calendar/grid";
 import { AnimatedValue, Countdown } from "@/components/motion";
 import type { PermissionKey } from "@/lib/rbac/catalog";
-import { audiencesFor } from "@/lib/announcements";
+import { visibleAnnouncementsWhere } from "@/lib/announcements";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -224,9 +224,9 @@ async function RolePanels({ user }: { user: CurrentUser }) {
       : [],
     loadCalendar(user, now, in14),
     // Only announcements addressed to this person.
-    audiencesFor(user.id).then((audience) =>
+    visibleAnnouncementsWhere(user.id).then((where) =>
       db.announcement.findMany({
-        where: { status: "PUBLISHED", audience: { in: audience } },
+        where,
         orderBy: { publishedAt: "desc" },
         take: 2,
         select: { id: true, title: true, publishedAt: true },
