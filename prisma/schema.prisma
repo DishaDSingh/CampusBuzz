@@ -1084,3 +1084,13 @@ model Announcement {
   @@index([status, publishedAt])
   @@index([eventId])
 }
+
+/// People who signed up for club news on the public website (the mailing list).
+model MailingListSubscriber {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  createdAt      DateTime  @default(now())
+  /// Set when they opt out; kept so they aren't re-added by mistake.
+  unsubscribedAt DateTime?
+}

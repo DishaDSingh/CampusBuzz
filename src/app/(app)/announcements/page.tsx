@@ -7,6 +7,7 @@ import { EmptyState, PageHeader, PageTabs, activeTab } from "@/components/common
 import { Button } from "@/components/ui/button";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { AUDIENCES, visibleAnnouncementsWhere, type Audience } from "@/lib/announcements";
+import { EmailAnnouncementButton } from "./email-dialog";
 
 export const metadata: Metadata = { title: "Announcements" };
 
@@ -15,10 +16,11 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
   const user = await requireUser();
   const sp = await props.searchParams;
   const editor = can(user, "announcements.view");
+  const publisher = can(user, "announcements.publish");
   const tab = editor ? activeTab(["sent", "drafts"] as const, sp.tab) : "sent";
   // Editors see everything that was sent; everyone else sees what was addressed to them.
   const sentWhere = editor ? { status: "PUBLISHED" } : await visibleAnnouncementsWhere(user.id);
-  const [list, drafts, approvals] = await Promise.all([
+  const [list, drafts, approvals, subscribers] = await Promise.all([
     db.announcement.findMany({
       where: tab === "drafts" ? { status: { in: ["DRAFT", "PENDING"] } } : sentWhere,
       // Waiting for approval first ("PENDING" sorts after "DRAFT", so descending).
@@ -28,6 +30,7 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
     }),
     editor ? db.announcement.count({ where: { status: { in: ["DRAFT", "PENDING"] } } }) : 0,
     editor ? db.announcement.count({ where: { status: "PENDING" } }) : 0,
+    publisher ? db.mailingListSubscriber.count({ where: { unsubscribedAt: null } }) : 0,
   ]);
 
   return (
@@ -35,7 +38,9 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
       <PageHeader
         title="Announcements"
         description={
-          editor ? "Draft, review, then send. Nothing goes out until someone with publish rights confirms." : "News from the committee."
+          editor
+            ? `Draft, review, then send. Nothing goes out until someone with publish rights confirms.${publisher ? ` ${subscribers} ${subscribers === 1 ? "person has" : "people have"} joined the mailing list from the website.` : ""}`
+            : "News from the committee."
         }
         actions={
           can(user, "announcements.create") && (
@@ -109,6 +114,11 @@ export default async function AnnouncementsPage(props: PageProps<"/announcements
                 </Link>
               )}
               <p className="mt-2 text-sm whitespace-pre-line">{a.body}</p>
+              {publisher && (
+                <div className="mt-3 border-t pt-3">
+                  <EmailAnnouncementButton announcementId={a.id} />
+                </div>
+              )}
             </li>
           ))}
         </ol>

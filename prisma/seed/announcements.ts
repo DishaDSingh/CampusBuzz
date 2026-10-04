@@ -18,23 +18,27 @@ export async function seedAnnouncements(db: Db) {
       title: "Welcome, freshers! 🎉",
       body: "The Freshers' Welcome Mixer is this Saturday from 5 pm in the Main Auditorium. Bring your digital pass — it's on the My pass page — and come say hi to the committee.\n\nSee you there!",
       days: 2,
+      audience: "ALL",
     },
     {
       title: "Diwali Gala tickets are on sale",
       body: "Diwali Gala Night is on 7 November. Member tickets are cheaper — buy from the Events page and keep your QR ticket handy at the door.\n\nEarly-bird seats are limited.",
       days: 20,
+      audience: "ALL",
     },
     {
       title: "Volunteers wanted for Garba Night",
       body: "We need help with set-up, check-in and the food stalls on 12 October. Sign up from the Volunteering page and pick the times that suit you.",
       days: 9,
+      audience: "MEMBERS",
     },
   ];
   await db.announcement.createMany({
     data: sent.map((a) => ({
       title: a.title,
       body: a.body,
-      audience: "MEMBERS",
+      // Public news (shown on the website) goes to everyone.
+      audience: a.audience,
       status: "PUBLISHED",
       recipients: members,
       createdById: author,

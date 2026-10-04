@@ -9,7 +9,8 @@ const PUBLIC_PATHS = ["/login", "/setup", "/join"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
+  // "/" is the public club website.
+  if (pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
 
   if (!request.cookies.has("cb_session")) {
     const url = new URL("/login", request.url);

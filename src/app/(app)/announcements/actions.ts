@@ -276,3 +276,33 @@ export const publishAnnouncement = guardedAction(
     return ok(undefined, `Sent to ${people(users.length)}`);
   },
 );
+
+/**
+ * The mailing list for a sent announcement: everyone it was addressed to,
+ * plus public mailing-list subscribers when it went to everyone. CampusBuzz
+ * runs offline (no mail server), so the publisher copies this into their
+ * email app as Bcc — one email that reaches everyone, with the record kept here.
+ */
+export const announcementMailingList = guardedAction(
+  { permission: "announcements.publish", schema: submitAnnouncementSchema },
+  async ({ announcementId }, actor) => {
+    const a = await db.announcement.findUnique({ where: { id: announcementId } });
+    if (!a) return fail("Announcement not found.");
+    if (a.status !== "PUBLISHED") return fail("Send it in CampusBuzz first.");
+    const [users, subscribers] = await Promise.all([
+      db.user.findMany({ where: audienceWhere(a.audience as Audience, new Date(), a.eventId), select: { email: true } }),
+      a.audience === "ALL" ? db.mailingListSubscriber.findMany({ where: { unsubscribedAt: null }, select: { email: true } }) : [],
+    ]);
+    const emails = [...new Set([...users, ...subscribers].map((u) => u.email.toLowerCase()))].sort();
+    await db.$transaction((tx) =>
+      audit(tx, {
+        actor,
+        action: "announcement.mailing_list",
+        entityType: "Announcement",
+        entityId: a.id,
+        summary: `Prepared "${a.title}" for email to ${people(emails.length)}`,
+      }),
+    );
+    return ok({ subject: a.title, body: a.body, emails, subscribers: subscribers.length });
+  },
+);
