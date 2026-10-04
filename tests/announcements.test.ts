@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { draftAnnouncementSchema, publishAnnouncementSchema, saveAnnouncementSchema } from "@/lib/validation/schemas";
 import { NAV } from "@/components/shell/nav";
-import { eventTemplate } from "@/lib/announcement-templates";
+import { eventTemplate, writeEventCopy } from "@/lib/announcement-templates";
 
 describe("announcements: human in the loop", () => {
   it("needs a real brief and a known audience to draft", () => {
@@ -67,5 +67,22 @@ describe("event announcements", () => {
       saveAnnouncementSchema.safeParse({ announcementId: "c".repeat(25), title: "Hello", body: "A long enough body", audience: "EVENT" })
         .success,
     ).toBe(true);
+  });
+});
+
+describe("event announcement writer (offline)", () => {
+  it("turns rough notes into a proper description with highlights", () => {
+    const c = writeEventCopy(
+      { title: "Sports Day 2026", category: "Sports", description: null },
+      "cricket, football and relay races. teams of 5, prizes for winners; food stalls all day",
+    );
+    expect(c.intro).toBe("Lace up and get ready to compete — Sports Day 2026 is on!");
+    expect(c.details).toBe("Cricket, football and relay races. Teams of 5, prizes for winners. Food stalls all day.");
+    expect(c.highlights).toEqual(["👥 Register as a team of 5", "🏆 Exciting prizes for the winners", "🍲 Food and refreshments"]);
+  });
+
+  it("falls back to the event description, then to a placeholder", () => {
+    expect(writeEventCopy({ title: "T", category: null, description: "a calm evening" }, "").details).toBe("A calm evening.");
+    expect(writeEventCopy({ title: "T", category: null, description: null }, "").details).toMatch(/\[add/);
   });
 });

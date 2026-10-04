@@ -9,6 +9,7 @@ import { seedFinance } from "./finance";
 import { seedMemory } from "./memory";
 import { seedAnnouncements } from "./announcements";
 import { ensureMasterAdmin } from "./master";
+import { ensureNamedAccounts } from "./accounts";
 
 /**
  * `npm run db:seed` — wipes the local database and rebuilds the demo dataset.
@@ -91,6 +92,7 @@ async function main() {
 
     console.log("Master Admin from .env...");
     console.table(await ensureMasterAdmin(db));
+    console.table(await ensureNamedAccounts(db));
   } finally {
     await db.$disconnect();
   }

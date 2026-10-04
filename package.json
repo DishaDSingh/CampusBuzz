@@ -21,7 +21,8 @@
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run lint && npm run test",
     "db:seed:full": "cross-env SEED_SIZE=full prisma db seed",
-    "admin:master": "tsx prisma/seed/master-cli.ts"
+    "admin:master": "tsx prisma/seed/master-cli.ts",
+    "admin:accounts": "tsx prisma/seed/accounts-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

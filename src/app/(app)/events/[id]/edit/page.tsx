@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/auth/current-user";
+import { can, requirePermission } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/common";
 import { toDateTimeInput } from "@/lib/events/load";
 import { EventForm } from "../../event-forms";
@@ -9,7 +9,7 @@ import { EventForm } from "../../event-forms";
 export const metadata: Metadata = { title: "Edit event" };
 
 export default async function EditEventPage(props: PageProps<"/events/[id]/edit">) {
-  await requirePermission("events.edit");
+  const user = await requirePermission("events.edit");
   const { id } = await props.params;
   const [e, committees] = await Promise.all([
     db.event.findUnique({ where: { id }, include: { organizer: { select: { id: true, name: true } } } }),
@@ -22,6 +22,7 @@ export default async function EditEventPage(props: PageProps<"/events/[id]/edit"
       <PageHeader title={`Edit ${e.title}`} back={{ href: `/events/${e.id}`, label: e.title }} />
       <EventForm
         committees={committees}
+        canAnnounce={can(user, "announcements.create") && e.status !== "CANCELLED"}
         defaults={{
           eventId: e.id,
           title: e.title,

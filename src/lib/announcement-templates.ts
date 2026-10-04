@@ -78,6 +78,7 @@ export const suggestedTemplate: Record<AudienceKey, string> = {
 
 export type EventFacts = {
   title: string;
+  category?: string | null;
   startsAt: Date;
   endsAt: Date;
   venue: string;
@@ -91,12 +92,63 @@ const rupees = (p: number) => (p === 0 ? "Free" : `₹${(p / 100).toLocaleString
 const when = (d: Date) =>
   d.toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
 
+/** An opening line that suits the kind of event. */
+const OPENERS: Record<string, (t: string) => string> = {
+  Gala: (t) => `Get ready for a night to remember — ${t} is almost here!`,
+  Cultural: (t) => `Celebrate with us at ${t}, a showcase of music, colour and culture.`,
+  Workshop: (t) => `Learn something new at ${t}, a hands-on session for everyone.`,
+  Tech: (t) => `Calling all builders and curious minds — ${t} is coming up!`,
+  Sports: (t) => `Lace up and get ready to compete — ${t} is on!`,
+  Social: (t) => `Take a break and come hang out with us at ${t}.`,
+  Talk: (t) => `Don't miss ${t}, an inspiring session you won't want to skip.`,
+  Fundraiser: (t) => `Join us at ${t} and help raise funds for a great cause.`,
+};
+
+/** Things people look for, picked out of the organizer's notes into a highlights list. */
+const HIGHLIGHTS: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/teams? of (\d+)/i, (m) => `👥 Register as a team of ${m[1]}`],
+  [/prizes?|trophy|trophies|rewards?|goodies/i, () => "🏆 Exciting prizes for the winners"],
+  [/certificates?/i, () => "📜 Certificates for all participants"],
+  [/dress ?code[:\s-]*(?:is\s+)?([a-z][a-z\s-]{2,30})/i, (m) => `👗 Dress code: ${m[1].trim().replace(/\s+(and|with|plus)$/i, "")}`],
+  [/food|snacks?|dinner|lunch|refreshments?|stalls?/i, () => "🍲 Food and refreshments"],
+  [/live (music|band|performances?)|dj\b|concert/i, () => "🎶 Live music and performances"],
+  [/laptops?/i, () => "💻 Bring your laptop"],
+  [/free (entry|for members)/i, () => "🎟 Free entry for members"],
+  [/(guest|chief|keynote) (speaker|guest)/i, () => "🎤 Special guest speaker"],
+  [/limited (seats|spots|entries)/i, () => "⏳ Limited seats — book early"],
+];
+
+const sentence = (s: string) => {
+  const t = s.trim().replace(/\s+/g, " ");
+  if (!t) return "";
+  const capped = t[0].toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(capped) ? capped : `${capped}.`;
+};
+
+/**
+ * Turns the organizer's rough notes ("cricket football relay, teams of 5,
+ * prizes") into a proper paragraph plus a highlights list. Works offline;
+ * nothing is invented beyond the notes and the event's own category.
+ */
+export function writeEventCopy(e: Pick<EventFacts, "title" | "category" | "description">, notes: string) {
+  const raw = (notes.trim() || e.description?.trim() || "").replace(/\s+/g, " ");
+  const opener = (OPENERS[e.category ?? ""] ?? ((t: string) => `We're excited to announce ${t}!`))(e.title);
+  if (!raw) return { intro: opener, details: "[add what makes this event special]", highlights: [] as string[] };
+  const details = raw
+    .split(/(?<=[.!?])\s+|\n+|;\s*/)
+    .map(sentence)
+    .filter(Boolean)
+    .join(" ");
+  const highlights = [...new Set(HIGHLIGHTS.map(([re, f]) => raw.match(re) && f(raw.match(re)!)).filter((h): h is string => !!h))];
+  return { intro: opener, details, highlights };
+}
+
 /**
  * The official event announcement: every fact (date, venue, prices, how to
- * book) comes from the event itself; the organizer's prompt adds the tone and
- * highlights. AI may polish the wording but is told never to change facts.
+ * book) comes from the event itself; the organizer's notes become the
+ * description and highlights. AI may polish the wording but never the facts.
  */
-export function eventTemplate(e: EventFacts, prompt: string, orgName: string) {
+export function eventTemplate(e: EventFacts, prompt: string, orgName: string, polished?: string) {
   const sameDay = e.startsAt.toDateString() === e.endsAt.toDateString();
   const time = sameDay
     ? `${when(e.startsAt)} – ${e.endsAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`
@@ -110,13 +162,14 @@ export function eventTemplate(e: EventFacts, prompt: string, orgName: string) {
         )
         .join("\n")
     : "• [add ticket prices]";
-  const highlight = prompt.trim() || e.description?.trim() || "[add what makes this event special]";
+  const copy = writeEventCopy(e, prompt);
   return {
     title: `📣 ${e.title} — ${e.startsAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`.slice(0, 120),
     body: [
       "Hi everyone,",
-      `We're excited to announce ${e.title}!`,
-      highlight,
+      copy.intro,
+      polished?.trim() || copy.details,
+      ...(copy.highlights.length ? [`✨ Highlights\n${copy.highlights.map((h) => `• ${h}`).join("\n")}`] : []),
       `🗓 When: ${time}\n📍 Where: ${e.venue}`,
       `🎟 Tickets\n${tickets}${e.salesOpenAt && e.salesOpenAt > new Date() ? `\nSales open ${when(e.salesOpenAt)}.` : ""}`,
       `🎫 Book your seat on CampusBuzz: open Events → ${e.title}.`,

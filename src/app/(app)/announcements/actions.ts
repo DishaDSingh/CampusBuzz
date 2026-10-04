@@ -65,6 +65,7 @@ export const draftEventAnnouncementAction = guardedAction(
         select: {
           id: true,
           title: true,
+          category: true,
           startsAt: true,
           endsAt: true,
           venue: true,

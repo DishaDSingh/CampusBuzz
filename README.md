@@ -42,6 +42,8 @@ npm run db:seed             # small demo dataset (~50–60 rows per category, ~1
 npm run dev                 # http://localhost:3000
 ```
 
+Named team accounts (your own emails) can be listed in `.env` as `NAMED_ACCOUNTS` / `NAMED_ACCOUNTS_PASSWORD` (see `.env.example`) and created with `npm run admin:accounts`; they're also recreated by `npm run db:seed`.
+
 No seed? Visit `http://localhost:3000` and the **setup wizard** creates your organization and its Master Admin.
 
 ### Demo logins

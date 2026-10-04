@@ -6,7 +6,18 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { toast } from "sonner";
-import { BanIcon, CheckIcon, Loader2Icon, MinusIcon, PencilIcon, PlusIcon, RocketIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import {
+  BanIcon,
+  CheckIcon,
+  Loader2Icon,
+  MegaphoneIcon,
+  MinusIcon,
+  PencilIcon,
+  PlusIcon,
+  RocketIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,6 +63,12 @@ import {
 } from "./actions";
 
 // ─── Event form ──────────────────────────────────────────────────────────────
+
+const ANNOUNCE_EXAMPLES = [
+  "Grand cultural night with live music, food stalls and an ethnic dress code",
+  "Hands-on beginners workshop, bring your laptop, certificates for everyone",
+  "Inter-department tournament, teams of 5, prizes for the winners",
+];
 
 type EventDefaults = {
   eventId?: string;
@@ -145,20 +162,37 @@ export function EventForm({
           />
         </Field>
         {canAnnounce && (
-          <div className="grid gap-2 rounded-xl border border-dashed border-[color-mix(in_oklch,var(--page-accent)_45%,transparent)] bg-[color-mix(in_oklch,var(--page-accent)_6%,transparent)] p-3 sm:p-4">
-            <Field
+          <div className="grid gap-3 rounded-2xl border-2 border-dashed border-[color-mix(in_oklch,var(--page-accent)_50%,transparent)] bg-[color-mix(in_oklch,var(--page-accent)_7%,transparent)] p-4">
+            <div>
+              <p className="flex items-center gap-1.5 font-semibold">
+                <MegaphoneIcon className="size-4 text-[var(--page-accent)]" /> Write the announcement for me
+              </p>
+              <p className="text-muted-foreground mt-0.5 text-sm">
+                Type a line about the event. We&apos;ll write the official announcement — a proper description, highlights, date, venue and
+                ticket prices — as a draft you can edit and send to an admin for approval.
+              </p>
+            </div>
+            <Textarea
               id="announcePrompt"
-              label="📣 Announcement (optional)"
-              hint="Describe it in a line. We'll write the official announcement — with the date, venue and ticket prices — for you to check and send for approval."
-            >
-              <Textarea
-                rows={2}
-                value={announcePrompt}
-                onChange={(ev) => setAnnouncePrompt(ev.target.value)}
-                maxLength={1000}
-                placeholder="e.g. Grand cultural night with live music, food stalls and an ethnic dress code"
-              />
-            </Field>
+              aria-label="Announcement prompt"
+              rows={3}
+              value={announcePrompt}
+              onChange={(ev) => setAnnouncePrompt(ev.target.value)}
+              maxLength={1000}
+              placeholder="e.g. cricket, football and relay races. teams of 5, prizes for winners, food stalls all day"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {ANNOUNCE_EXAMPLES.map((ex) => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => setAnnouncePrompt(ex)}
+                  className="bg-background hover:bg-muted rounded-full border px-2.5 py-1 text-left text-xs transition-colors"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -206,6 +240,7 @@ export function EventForm({
         <Button type="submit" size="lg" disabled={pending}>
           {pending && <Loader2Icon className="animate-spin" />}
           {defaults.eventId ? "Save event" : "Create draft"}
+          {canAnnounce && announcePrompt.trim() ? " & write announcement" : ""}
         </Button>
       </aside>
     </form>

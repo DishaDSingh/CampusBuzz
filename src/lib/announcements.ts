@@ -110,9 +110,13 @@ export async function visibleAnnouncementsWhere(userId: string): Promise<Prisma.
 
 const Polish = z.object({ highlight: z.string().describe("2–3 warm sentences about the event, using only the organizer's notes.") });
 
-/** Official template + (optionally) an AI-polished highlight paragraph from the organizer's prompt. */
+/**
+ * Official template: the built-in writer turns the organizer's notes into a
+ * description and highlights; with AI configured, the description paragraph
+ * is polished further.
+ */
 export async function draftEventAnnouncement(e: EventFacts, prompt: string, orgName: string, useAi: boolean) {
-  let highlight = prompt;
+  let highlight: string | undefined;
   let source: "ai" | "template" = "template";
   if (useAi && prompt.trim()) {
     const ai = await structured({
@@ -127,7 +131,7 @@ export async function draftEventAnnouncement(e: EventFacts, prompt: string, orgN
       source = "ai";
     }
   }
-  return { ...eventTemplate(e, highlight, orgName), source };
+  return { ...eventTemplate(e, prompt, orgName, highlight), source };
 }
 
 /** Which audiences a person is in — they only see announcements addressed to them. */
