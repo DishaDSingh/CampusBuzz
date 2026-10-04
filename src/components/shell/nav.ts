@@ -18,7 +18,6 @@ import {
   TelescopeIcon,
   ShieldIcon,
   CircleUserRoundIcon,
-  SparklesIcon,
   MegaphoneIcon,
   CalendarRangeIcon,
   NotebookPenIcon,
@@ -224,7 +223,6 @@ export const NAV: NavGroup[] = [
       { href: "/me/volunteering", label: "Volunteering", icon: HandHeartIcon, tone: "rose", keywords: "my tasks help" },
       { href: "/me", label: "My membership", icon: BadgeIndianRupeeIcon, tone: "emerald", keywords: "renew dues join" },
       { href: "/profile", label: "My profile & access", icon: UserCircleIcon, tone: "sky", keywords: "password account" },
-      { href: "/ai", label: "How AI works here", icon: SparklesIcon, tone: "fuchsia", keywords: "ai principles privacy human review" },
     ],
   },
 ];

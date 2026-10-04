@@ -197,7 +197,6 @@ Each phase lists only what it **adds**. Nothing is added unless it earns its pla
 | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Role-aware dashboard**          | Permission-scoped to-dos plus the three panels that matter for the role (pulse, your events, coming up…) |
 | **Human-confirmed announcements** | AI drafts; a publisher confirms the exact recipient count; audiences: members, expiring, volunteers, all |
-| **"How AI works here" page**      | Every AI feature: what AI does, what a person does, the guardrail, and the offline fallback              |
 | **Three-layer navigation**        | Operate / Understand / Anticipate — the product architecture is the sidebar                              |
 
 ### Keeping it simple
